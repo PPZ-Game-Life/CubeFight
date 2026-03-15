@@ -124,6 +124,8 @@ export class InputManager {
    */
   private onPointerUp() {
     this.isDragging = false;
+    // 立即停止速度，不再滑动
+    this.velocity = { azimuth: 0, polar: 0 };
   }
 
   /**
@@ -175,20 +177,31 @@ export class InputManager {
    */
   private onTouchMove(event: TouchEvent) {
     event.preventDefault();
-    if (!this.isDragging || event.touches.length !== 1) return;
+    if (event.touches.length !== 1) return;
 
-    const deltaX = event.touches[0].clientX - this.previousMousePosition.x;
-    const deltaY = event.touches[0].clientY - this.previousMousePosition.y;
+    // 检查是否移动超过阈值
+    const deltaX = event.touches[0].clientX - this.clickStartPosition.x;
+    const deltaY = event.touches[0].clientY - this.clickStartPosition.y;
+    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+    
+    if (distance > this.DRAG_THRESHOLD) {
+      this.isDragging = true;
+    }
 
-    this.azimuthAngle -= deltaX * this.SENSITIVITY;
-    this.polarAngle += deltaY * this.SENSITIVITY;
+    if (!this.isDragging) return;
+
+    const moveDeltaX = event.touches[0].clientX - this.previousMousePosition.x;
+    const moveDeltaY = event.touches[0].clientY - this.previousMousePosition.y;
+
+    this.azimuthAngle -= moveDeltaX * this.SENSITIVITY;
+    this.polarAngle += moveDeltaY * this.SENSITIVITY;
     this.polarAngle = Math.max(
       this.MIN_POLAR_ANGLE,
       Math.min(this.MAX_POLAR_ANGLE, this.polarAngle)
     );
 
-    this.velocity.azimuth = -deltaX * this.SENSITIVITY;
-    this.velocity.polar = deltaY * this.SENSITIVITY;
+    this.velocity.azimuth = -moveDeltaX * this.SENSITIVITY;
+    this.velocity.polar = moveDeltaY * this.SENSITIVITY;
 
     this.updateCameraPosition();
 
@@ -204,6 +217,8 @@ export class InputManager {
   private onTouchEnd(event: TouchEvent) {
     if (event.touches.length === 0) {
       this.isDragging = false;
+      // 立即停止速度，不再滑动
+      this.velocity = { azimuth: 0, polar: 0 };
     }
 
     // 单击检测
