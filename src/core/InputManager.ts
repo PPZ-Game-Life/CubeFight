@@ -107,10 +107,6 @@ export class InputManager {
       Math.min(this.MAX_POLAR_ANGLE, this.polarAngle)
     );
 
-    // 设置速度用于阻尼
-    this.velocity.azimuth = -moveDeltaX * this.SENSITIVITY;
-    this.velocity.polar = moveDeltaY * this.SENSITIVITY;
-
     this.updateCameraPosition();
 
     this.previousMousePosition = {
@@ -200,9 +196,6 @@ export class InputManager {
       Math.min(this.MAX_POLAR_ANGLE, this.polarAngle)
     );
 
-    this.velocity.azimuth = -moveDeltaX * this.SENSITIVITY;
-    this.velocity.polar = moveDeltaY * this.SENSITIVITY;
-
     this.updateCameraPosition();
 
     this.previousMousePosition = {
@@ -280,21 +273,11 @@ export class InputManager {
    * 更新阻尼（每帧调用）
    */
   update() {
-    if (!this.isDragging && (Math.abs(this.velocity.azimuth) > 0.0001 || Math.abs(this.velocity.polar) > 0.0001)) {
-      this.azimuthAngle += this.velocity.azimuth;
-      this.polarAngle += this.velocity.polar;
-      
-      // 限制俯仰角
-      this.polarAngle = Math.max(
-        this.MIN_POLAR_ANGLE,
-        Math.min(this.MAX_POLAR_ANGLE, this.polarAngle)
-      );
-
-      this.updateCameraPosition();
-
-      // 阻尼衰减
-      this.velocity.azimuth *= this.DAMPING;
-      this.velocity.polar *= this.DAMPING;
+    // 只有在拖拽时才应用速度，抬起时立即停止
+    // 禁用惯性滑动，确保用户体验
+    if (this.isDragging && (Math.abs(this.velocity.azimuth) > 0.0001 || Math.abs(this.velocity.polar) > 0.0001)) {
+      // 实际上在拖拽时速度已经在onPointerMove中应用了
+      // 这里只是保留接口，不做额外处理
     }
   }
 
