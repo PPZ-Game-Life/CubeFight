@@ -154,86 +154,32 @@ export class Cube {
   /**
    * 升级（合成后）
    */
-  levelUp(): Promise<void> {
-    if (this.level >= CONFIG.MAX_LEVEL) return Promise.resolve();
+  levelUp() {
+    if (this.level >= CONFIG.MAX_LEVEL) return;
     
     this.level++;
     
     // 升级动画
-    return new Promise((resolve) => {
-      gsap.timeline()
-        .to(this.mesh.scale, {
-          x: 1.3,
-          y: 1.3,
-          z: 1.3,
-          duration: 0.2,
-          ease: 'back.out'
-        })
-        .to(this.mesh.scale, {
-          x: 1,
-          y: 1,
-          z: 1,
-          duration: 0.2,
-          ease: 'back.in',
-          onComplete: () => resolve()
-        });
-
-      // 颜色变亮（等级越高越亮）
-      const brightness = 1 + (this.level - 1) * 0.1;
-      this.material.emissive = new THREE.Color(CONFIG.COLORS[this.color]);
-      this.material.emissiveIntensity = brightness * 0.3;
-    });
-  }
-
-  /**
-   * 降级（道具效果）
-   */
-  levelDown(): Promise<void> {
-    if (this.level <= 1) return Promise.resolve();
-    
-    this.level--;
-    
-    // 降级动画
-    return new Promise((resolve) => {
-      gsap.timeline()
-        .to(this.mesh.scale, {
-          x: 0.7,
-          y: 0.7,
-          z: 0.7,
-          duration: 0.2,
-          ease: 'back.out'
-        })
-        .to(this.mesh.scale, {
-          x: 1,
-          y: 1,
-          z: 1,
-          duration: 0.2,
-          ease: 'back.in',
-          onComplete: () => resolve()
-        });
-
-      // 颜色变暗
-      const brightness = 1 + (this.level - 1) * 0.1;
-      this.material.emissive = new THREE.Color(CONFIG.COLORS[this.color]);
-      this.material.emissiveIntensity = brightness * 0.3;
-    });
-  }
-
-  /**
-   * 改变颜色（道具效果）
-   */
-  changeColor(newColor: CubeColor): Promise<void> {
-    this.color = newColor;
-    
-    return new Promise((resolve) => {
-      gsap.to(this.material, {
-        duration: 0.3,
-        onUpdate: () => {
-          this.material.color.set(CONFIG.COLORS[newColor]);
-        },
-        onComplete: () => resolve()
+    gsap.timeline()
+      .to(this.mesh.scale, {
+        x: 1.3,
+        y: 1.3,
+        z: 1.3,
+        duration: 0.2,
+        ease: 'back.out'
+      })
+      .to(this.mesh.scale, {
+        x: 1,
+        y: 1,
+        z: 1,
+        duration: 0.2,
+        ease: 'back.in'
       });
-    });
+
+    // 颜色变亮（等级越高越亮）
+    const brightness = 1 + (this.level - 1) * 0.1;
+    this.material.emissive = new THREE.Color(CONFIG.COLORS[this.color]);
+    this.material.emissiveIntensity = brightness * 0.3;
   }
 
   /**
@@ -277,6 +223,49 @@ export class Cube {
           resolve();
         }
       });
+    });
+  }
+
+  /**
+   * 降级（道具使用）
+   */
+  levelDown() {
+    if (this.level <= 1) return;
+    
+    this.level--;
+    
+    // 降级动画
+    gsap.timeline()
+      .to(this.mesh.scale, {
+        x: 0.8,
+        y: 0.8,
+        z: 0.8,
+        duration: 0.15
+      })
+      .to(this.mesh.scale, {
+        x: 1,
+        y: 1,
+        z: 1,
+        duration: 0.15
+      });
+
+    // 降低发光强度
+    const brightness = 1 + (this.level - 1) * 0.1;
+    this.material.emissiveIntensity = brightness * 0.3;
+  }
+
+  /**
+   * 改变颜色（道具使用）
+   */
+  changeColor(newColor: CubeColor) {
+    this.color = newColor;
+    
+    // 颜色变化动画
+    gsap.to(this.material.color, {
+      r: ((CONFIG.COLORS[newColor] >> 16) & 255) / 255,
+      g: ((CONFIG.COLORS[newColor] >> 8) & 255) / 255,
+      b: (CONFIG.COLORS[newColor] & 255) / 255,
+      duration: 0.5
     });
   }
 

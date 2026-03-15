@@ -2,16 +2,12 @@ import { SceneManager } from './SceneManager';
 import { InputManager } from './InputManager';
 import { Grid3D } from '../entities/Grid3D';
 import { Cube } from '../entities/Cube';
-import { CubeColor, CubeState, CONFIG, GameMode, RefreshMode } from './Config';
+import { CubeColor, CubeState, CONFIG, GameMode, LEVEL_VALUES } from './Config';
 import { SliceSystem } from '../systems/SliceSystem';
-import { GameStateManager } from './GameStateManager';
-import { MergeSystem } from '../systems/MergeSystem';
-import { CombatSystem } from '../systems/CombatSystem';
-import { RedBlockSpawner } from '../systems/RedBlockSpawner';
-import { ItemSystem } from '../systems/ItemSystem';
 
 /**
- * 游戏主控制器 - 完整重新实现
+ * 游戏主控制器
+ * 基于设计文档重新实现,整合双轨经济、Combo系统、动态刷新等核心功能
  */
 export class Game {
   private sceneManager: SceneManager;
@@ -19,39 +15,32 @@ export class Game {
   private grid: Grid3D;
   private sliceSystem: SliceSystem;
   
-  // 游戏系统
-  private gameState: GameStateManager;
-  private mergeSystem: MergeSystem;
-  private combatSystem: CombatSystem;
-  private redBlockSpawner: RedBlockSpawner;
-  private itemSystem: ItemSystem;
-  
-  // 交互状态
   private selectedCube: Cube | null = null;
   private highlightedCubes: Cube[] = [];
-  private isRunning: boolean = false;
   
-  // 游戏模式
+  // 双轨经济系统
+  private score: number = 0;      // 积分(荣誉数值,用于排行榜)
+  private coins: number = 0;      // 金币(购买力,用于买皮肤)
+  
+  // Combo系统
+  private comboCount: number = 0;
+  private lastActionTime: number = 0;
+  
+  // 游戏状态
+  private isRunning: boolean = false;
   private gameMode: GameMode = GameMode.ENDLESS;
+  
+  // 动态刷新系统(无尽模式)
+  private spawnTimer: number = 0;
+  private spawnInterval: number = 2000; // 2秒刷新一次红块
 
   constructor(container: HTMLElement) {
-    // 初始化管理器
     this.sceneManager = new SceneManager(container);
     this.inputManager = new InputManager(this.sceneManager);
     this.grid = new Grid3D();
     this.sliceSystem = new SliceSystem(this.grid);
-    
-    // 初始化游戏系统
-    this.gameState = new GameStateManager();
-    this.mergeSystem = new MergeSystem(this.gameState);
-    this.combatSystem = new CombatSystem(this.gameState);
-    this.redBlockSpawner = new RedBlockSpawner(this.grid, this.gameState);
-    this.itemSystem = new ItemSystem();
 
-    // 设置输入回调
     this.inputManager.onCubeClick(this.handleCubeClick.bind(this));
-
-    // 初始化游戏
     this.init();
   }
 
@@ -61,10 +50,6 @@ export class Game {
   private init() {
     console.log('🎮 CubeFight 初始化中...');
     
-    // 设置游戏模式为无尽模式
-    this.gameState.setGameMode(GameMode.ENDLESS);
-    this.gameMode = GameMode.ENDLESS;
-    
     // 创建初始方块阵列
     this.createInitialCubes();
     
@@ -72,59 +57,76 @@ export class Game {
   }
 
   /**
-   * 创建初始方块阵列
+   * 创建初始方块(无尽模式起手配置)
    */
   private createInitialCubes() {
-    // 无尽模式：随机生成蓝块和黄块，少量红块
-    const colors = [CubeColor.BLUE, CubeColor.YELLOW];
-    let cubeCount = 0;
-    
-    for (let x = 0; x < CONFIG.GRID_SIZE; x++) {
-      for (let y = 0; y < CONFIG.GRID_SIZE; y++) {
-        for (let z = 0; z < CONFIG.GRID_SIZE; z++) {
-          // 随机决定是否放置方块（约70%概率）
-          if (Math.random() < 0.7) {
-            const color = colors[Math.floor(Math.random() * colors.length)];
-            const level = Math.floor(Math.random() * 3) + 1;
-            
-            const cube = new Cube(color, level, x, y, z);
-            this.grid.setCube(x, y, z, cube);
-            this.sceneManager.add(cube.mesh);
-            cubeCount++;
-          }
-        }
-      }
+    // 生成完整的3x3x3=27个方块
+    const initialSetup = [
+      // 底层 (y=0) - 9个方块
+      { color: CubeColor.BLUE, level: 1, x: 0, y: 0, z: 0 },
+      { color: CubeColor.BLUE, level: 1, x: 1, y: 0, z: 0 },
+      { color: CubeColor.YELLOW, level: 1, x: 2, y: 0, z: 0 },
+      { color: CubeColor.BLUE, level: 1, x: 0, y: 0, z: 1 },
+      { color: CubeColor.RED, level: 1, x: 1, y: 0, z: 1 },
+      { color: CubeColor.YELLOW, level: 1, x: 2, y: 0, z: 1 },
+      { color: CubeColor.YELLOW, level: 1, x: 0, y: 0, z: 2 },
+      { color: CubeColor.BLUE, level: 1, x: 1, y: 0, z: 2 },
+      { color: CubeColor.RED, level: 1, x: 2, y: 0, z: 2 },
+      
+      // 中层 (y=1) - 9个方块
+      { color: CubeColor.BLUE, level: 2, x: 0, y: 1, z: 0 },
+      { color: CubeColor.YELLOW, level: 1, x: 1, y: 1, z: 0 },
+      { color: CubeColor.BLUE, level: 1, x: 2, y: 1, z: 0 },
+      { color: CubeColor.RED, level: 1, x: 0, y: 1, z: 1 },
+      { color: CubeColor.YELLOW, level: 1, x: 1, y: 1, z: 1 },
+      { color: CubeColor.YELLOW, level: 2, x: 2, y: 1, z: 1 },
+      { color: CubeColor.BLUE, level: 1, x: 0, y: 1, z: 2 },
+      { color: CubeColor.RED, level: 1, x: 1, y: 1, z: 2 },
+      { color: CubeColor.BLUE, level: 1, x: 2, y: 1, z: 2 },
+      
+      // 顶层 (y=2) - 9个方块
+      { color: CubeColor.YELLOW, level: 1, x: 0, y: 2, z: 0 },
+      { color: CubeColor.BLUE, level: 1, x: 1, y: 2, z: 0 },
+      { color: CubeColor.RED, level: 1, x: 2, y: 2, z: 0 },
+      { color: CubeColor.RED, level: 1, x: 0, y: 2, z: 1 },
+      { color: CubeColor.BLUE, level: 1, x: 1, y: 2, z: 1 },
+      { color: CubeColor.YELLOW, level: 1, x: 2, y: 2, z: 1 },
+      { color: CubeColor.BLUE, level: 1, x: 0, y: 2, z: 2 },
+      { color: CubeColor.BLUE, level: 1, x: 1, y: 2, z: 2 },
+      { color: CubeColor.RED, level: 1, x: 2, y: 2, z: 2 }
+    ];
+
+    for (const setup of initialSetup) {
+      const cube = new Cube(setup.color, setup.level, setup.x, setup.y, setup.z);
+      this.grid.setCube(setup.x, setup.y, setup.z, cube);
+      this.sceneManager.add(cube.mesh);
     }
     
-    console.log(`✅ 创建了 ${cubeCount} 个初始方块`);
+    console.log(`✅ 初始化完成: 生成了 ${initialSetup.length} 个方块 (3x3x3=27)`);
   }
 
   /**
    * 处理方块点击
    */
   private handleCubeClick(cube: Cube) {
-    if (this.gameState.isOver() || this.gameState.isPausedState()) {
-      return;
-    }
-
     console.log(`点击方块: ${cube.color} Lv.${cube.level} at (${cube.gridX}, ${cube.gridY}, ${cube.gridZ})`);
 
-    // 如果没有选中方块，则选中当前方块
+    // 如果没有选中方块,则选中当前方块
     if (!this.selectedCube) {
-      // 只能选中蓝块或黄块
+      // 可以选中蓝色方块或黄色方块
       if (cube.color === CubeColor.BLUE || cube.color === CubeColor.YELLOW) {
         this.selectCube(cube);
       }
       return;
     }
 
-    // 如果点击的是已选中的方块，取消选中
+    // 如果点击的是已选中的方块,取消选中
     if (this.selectedCube === cube) {
       this.deselectCube();
       return;
     }
 
-    // 尝试执行操作（合成或吞噬）
+    // 尝试执行操作(合成或吞噬)
     this.tryAction(this.selectedCube, cube);
   }
 
@@ -135,7 +137,7 @@ export class Game {
     this.selectedCube = cube;
     cube.setSelected(true);
     
-    // 智能高亮：显示可操作的相邻方块
+    // 智能高亮:显示可操作的相邻方块
     this.highlightValidTargets(cube);
   }
 
@@ -148,27 +150,23 @@ export class Game {
       this.selectedCube = null;
     }
     
-    // 清除所有高亮和灰显
     this.clearHighlights();
   }
 
   /**
-   * 智能高亮系统：高亮可操作方块，灰显不可操作方块
+   * 智能高亮系统:高亮可操作方块,灰显不可操作方块
    */
   private highlightValidTargets(sourceCube: Cube) {
     const neighbors = this.grid.getNeighbors(sourceCube.gridX, sourceCube.gridY, sourceCube.gridZ);
     const validTargets: Cube[] = [];
 
-    // 检查每个相邻方块是否可操作
     for (const neighbor of neighbors) {
       const isValid = this.canPerformAction(sourceCube, neighbor.cube);
       
       if (isValid) {
-        // 可操作：高亮
         neighbor.cube.setHighlight(true);
         validTargets.push(neighbor.cube);
       } else {
-        // 不可操作：灰显
         neighbor.cube.setDimmed(true);
       }
     }
@@ -197,19 +195,23 @@ export class Game {
    * 检查是否可以执行操作
    */
   private canPerformAction(sourceCube: Cube, targetCube: Cube): boolean {
-    // 蓝块合成蓝块
-    if (sourceCube.color === CubeColor.BLUE && targetCube.color === CubeColor.BLUE) {
-      return this.mergeSystem.canMerge(sourceCube, targetCube);
-    }
-
-    // 黄块合成黄块
-    if (sourceCube.color === CubeColor.YELLOW && targetCube.color === CubeColor.YELLOW) {
-      return this.mergeSystem.canMerge(sourceCube, targetCube);
-    }
-
-    // 蓝块吞噬红块/黄块
     if (sourceCube.color === CubeColor.BLUE) {
-      return this.combatSystem.canDevour(sourceCube, targetCube);
+      // 合成:蓝+蓝,同等级
+      if (targetCube.color === CubeColor.BLUE && sourceCube.level === targetCube.level) {
+        return true;
+      }
+
+      // 吞噬:蓝吃红/黄,蓝的等级 >= 目标等级
+      if ((targetCube.color === CubeColor.RED || targetCube.color === CubeColor.YELLOW) &&
+          sourceCube.level >= targetCube.level) {
+        return true;
+      }
+    }
+
+    // 黄块合成:黄+黄,同等级
+    if (sourceCube.color === CubeColor.YELLOW && targetCube.color === CubeColor.YELLOW &&
+        sourceCube.level === targetCube.level) {
+      return true;
     }
 
     return false;
@@ -218,37 +220,34 @@ export class Game {
   /**
    * 尝试执行操作
    */
-  private async tryAction(sourceCube: Cube, targetCube: Cube) {
-    // 检查是否相邻
+  private tryAction(sourceCube: Cube, targetCube: Cube) {
     if (!this.isAdjacent(sourceCube, targetCube)) {
       console.log('❌ 方块不相邻');
       this.deselectCube();
       return;
     }
 
-    // 蓝块的操作
+    // 蓝色方块的操作
     if (sourceCube.color === CubeColor.BLUE) {
-      // 合成：蓝+蓝，同等级
+      // 合成:蓝+蓝
       if (targetCube.color === CubeColor.BLUE && sourceCube.level === targetCube.level) {
-        await this.performMerge(sourceCube, targetCube);
+        this.mergeCubes(sourceCube, targetCube);
         return;
       }
 
-      // 吞噬：蓝吃红/黄，蓝的等级 >= 目标等级
+      // 吞噬:蓝吃红/黄
       if ((targetCube.color === CubeColor.RED || targetCube.color === CubeColor.YELLOW) &&
           sourceCube.level >= targetCube.level) {
-        await this.performDevour(sourceCube, targetCube);
+        this.devourCube(sourceCube, targetCube);
         return;
       }
     }
 
-    // 黄块的操作
-    if (sourceCube.color === CubeColor.YELLOW) {
-      // 合成：黄+黄，同等级
-      if (targetCube.color === CubeColor.YELLOW && sourceCube.level === targetCube.level) {
-        await this.performMerge(sourceCube, targetCube);
-        return;
-      }
+    // 黄色方块合成
+    if (sourceCube.color === CubeColor.YELLOW && targetCube.color === CubeColor.YELLOW &&
+        sourceCube.level === targetCube.level) {
+      this.mergeCubes(sourceCube, targetCube);
+      return;
     }
 
     console.log('❌ 无法执行操作');
@@ -263,16 +262,15 @@ export class Game {
     const dy = Math.abs(cube1.gridY - cube2.gridY);
     const dz = Math.abs(cube1.gridZ - cube2.gridZ);
 
-    // 相邻定义：只有一个轴相差1，其他轴相同
     return (dx === 1 && dy === 0 && dz === 0) ||
            (dx === 0 && dy === 1 && dz === 0) ||
            (dx === 0 && dy === 0 && dz === 1);
   }
 
   /**
-   * 执行合成
+   * 合成方块
    */
-  private async performMerge(cube1: Cube, cube2: Cube) {
+  private async mergeCubes(cube1: Cube, cube2: Cube) {
     console.log('✨ 合成中...');
 
     // 移除cube2
@@ -281,35 +279,31 @@ export class Game {
     this.sceneManager.remove(cube2.mesh);
 
     // cube1升级
-    const result = await this.mergeSystem.performMerge(cube1, cube2);
-    
+    cube1.levelUp();
     this.deselectCube();
-    
-    // 在动态补位模式下生成新方块
-    if (this.gameState.getRefreshMode() === RefreshMode.DYNAMIC) {
-      const newCube = this.redBlockSpawner.trySpawnRedBlock();
-      if (newCube) {
-        this.grid.setCube(newCube.gridX, newCube.gridY, newCube.gridZ, newCube);
-        this.sceneManager.add(newCube.mesh);
-      }
+
+    // 增加积分(带Combo)
+    const baseScore = LEVEL_VALUES.SCORE[cube1.level - 1] || 10;
+    this.addScoreWithCombo(baseScore);
+    this.updateCombo();
+
+    // 无尽模式:操作后刷新红块
+    if (this.gameMode === GameMode.ENDLESS) {
+      this.spawnRedCube();
     }
-    
-    // 更新UI
-    this.updateScoreUI();
-    
-    // 检查游戏结束条件
-    this.checkGameOverCondition();
   }
 
   /**
-   * 执行吞噬
+   * 吞噬方块
    */
-  private async performDevour(blueCube: Cube, targetCube: Cube) {
+  private async devourCube(blueCube: Cube, targetCube: Cube) {
     console.log('💥 吞噬中...');
 
     const targetX = targetCube.gridX;
     const targetY = targetCube.gridY;
     const targetZ = targetCube.gridZ;
+    const targetColor = targetCube.color;
+    const targetLevel = targetCube.level;
 
     // 移除目标方块
     this.grid.setCube(targetX, targetY, targetZ, null);
@@ -321,62 +315,76 @@ export class Game {
     await blueCube.moveTo(targetX, targetY, targetZ);
     this.grid.setCube(targetX, targetY, targetZ, blueCube);
 
-    // 执行吞噬逻辑
-    const result = await this.combatSystem.performDevour(blueCube, targetCube);
-    
     this.deselectCube();
+
+    // 增加积分和金币(基于EconomyAndNumbers.md)
+    const baseScore = LEVEL_VALUES.SCORE[targetLevel - 1] || 10;
+    this.addScoreWithCombo(baseScore);
+
+    // 吃黄块掉落金币
+    if (targetColor === CubeColor.YELLOW) {
+      const coinReward = LEVEL_VALUES.COIN[targetLevel - 1] || 1;
+      this.addCoins(coinReward);
+      console.log(`💰 获得金币: +${coinReward}`);
+    }
+
+    this.updateCombo();
+
+    // 无尽模式:操作后刷新红块
+    if (this.gameMode === GameMode.ENDLESS) {
+      this.spawnRedCube();
+    }
+  }
+
+  /**
+   * 更新Combo系统
+   */
+  private updateCombo() {
+    const now = Date.now();
     
-    // 在动态补位模式下生成新方块
-    if (this.gameState.getRefreshMode() === RefreshMode.DYNAMIC) {
-      const newCube = this.redBlockSpawner.trySpawnRedBlock();
-      if (newCube) {
-        this.grid.setCube(newCube.gridX, newCube.gridY, newCube.gridZ, newCube);
-        this.sceneManager.add(newCube.mesh);
-      }
+    if (now - this.lastActionTime > CONFIG.COMBO_TIMEOUT) {
+      this.comboCount = 0;
     }
     
-    // 更新UI
+    this.comboCount++;
+    this.lastActionTime = now;
+    
+    if (this.comboCount > 1) {
+      this.showComboText(this.comboCount);
+    }
+  }
+
+  /**
+   * 显示Combo文字
+   */
+  private showComboText(combo: number) {
+    const comboTexts = [
+      '', '', 'Nice!', 'Great!', 'Awesome!', 'Amazing!', 'Godlike!'
+    ];
+    const text = combo < comboTexts.length ? comboTexts[combo] : 'UNSTOPPABLE!';
+    
+    console.log(`🔥 COMBO x${combo} - ${text}`);
+    // TODO: 实现UI显示
+  }
+
+  /**
+   * 带Combo的分数增加
+   */
+  private addScoreWithCombo(baseScore: number) {
+    const multiplier = Math.max(1, this.comboCount);
+    const finalScore = baseScore * multiplier;
+    this.score += finalScore;
+    
+    console.log(`+${finalScore} 积分 (x${multiplier})`);
     this.updateScoreUI();
-    
-    // 检查游戏结束条件
-    this.checkGameOverCondition();
   }
 
   /**
-   * 检查游戏结束条件
+   * 增加金币
    */
-  private checkGameOverCondition() {
-    // 检查是否已满（无法进行任何操作）
-    if (this.grid.isFull()) {
-      // 检查是否还有可操作的方块
-      let canMove = false;
-      
-      this.grid.getAllCubes().forEach(cube => {
-        if (cube.color === CubeColor.BLUE) {
-          const neighbors = this.grid.getNeighbors(cube.gridX, cube.gridY, cube.gridZ);
-          for (const neighbor of neighbors) {
-            if (this.canPerformAction(cube, neighbor.cube)) {
-              canMove = true;
-            }
-          }
-        }
-      });
-      
-      if (!canMove) {
-        console.log('💀 游戏结束！');
-        this.gameState.setGameOver(true);
-        this.showGameOverUI();
-      }
-    }
-  }
-
-  /**
-   * 显示游戏结束UI
-   */
-  private showGameOverUI() {
-    const stats = this.gameState.getSessionStats();
-    console.log('📊 游戏统计:', stats);
-    // TODO: 实现游戏结束UI
+  private addCoins(amount: number) {
+    this.coins += amount;
+    this.updateCoinsUI();
   }
 
   /**
@@ -385,18 +393,86 @@ export class Game {
   private updateScoreUI() {
     const scoreElement = document.getElementById('score');
     if (scoreElement) {
-      scoreElement.textContent = `Score: ${this.gameState.getScore()}`;
+      scoreElement.textContent = `Score: ${this.score} | Coins: ${this.coins}`;
+    }
+  }
+
+  /**
+   * 更新金币UI
+   */
+  private updateCoinsUI() {
+    this.updateScoreUI();
+  }
+
+  /**
+   * 刷新红块(无尽模式)
+   */
+  private spawnRedCube() {
+    const emptyPositions = this.grid.getEmptyPositions();
+    if (emptyPositions.length === 0) {
+      console.log('⚠️ 没有空位,检查Game Over');
+      this.checkGameOver();
+      return;
+    }
+
+    // 随机选择一个空位
+    const pos = emptyPositions[Math.floor(Math.random() * emptyPositions.length)];
+    
+    // 红块等级 = [1, Max(1, 场上最高蓝块等级 - 1)]
+    const maxBlueLevel = this.getMaxBlueLevelOnGrid();
+    const minLevel = 1;
+    const maxLevel = Math.max(1, maxBlueLevel - 1);
+    const level = Math.floor(Math.random() * (maxLevel - minLevel + 1)) + minLevel;
+
+    const redCube = new Cube(CubeColor.RED, level, pos.x, pos.y, pos.z);
+    this.grid.setCube(pos.x, pos.y, pos.z, redCube);
+    this.sceneManager.add(redCube.mesh);
+
+    console.log(`🔴 生成红块 Lv.${level} at (${pos.x}, ${pos.y}, ${pos.z})`);
+  }
+
+  /**
+   * 获取场上最高蓝块等级
+   */
+  private getMaxBlueLevelOnGrid(): number {
+    let maxLevel = 1;
+    this.grid.getAllCubes().forEach(cube => {
+      if (cube.color === CubeColor.BLUE && cube.level > maxLevel) {
+        maxLevel = cube.level;
+      }
+    });
+    return maxLevel;
+  }
+
+  /**
+   * 检查Game Over
+   */
+  private checkGameOver() {
+    if (this.grid.isFull() && !this.hasValidMoves()) {
+      console.log('💀 Game Over!');
+      this.pause();
+      // TODO: 显示Game Over界面
+    }
+  }
+
+  /**
+   * 检查是否还有有效操作
+   */
+  private hasValidMoves(): boolean {
+    const allCubes = this.grid.getAllCubes();
+    
+    for (const cube of allCubes) {
+      if (cube.color !== CubeColor.BLUE) continue;
+      
+      const neighbors = this.grid.getNeighbors(cube.gridX, cube.gridY, cube.gridZ);
+      for (const neighbor of neighbors) {
+        if (this.canPerformAction(cube, neighbor.cube)) {
+          return true;
+        }
+      }
     }
     
-    const coinElement = document.getElementById('coin');
-    if (coinElement) {
-      coinElement.textContent = `Coin: ${this.gameState.getCoin()}`;
-    }
-    
-    const comboElement = document.getElementById('combo');
-    if (comboElement && this.gameState.getComboCount() > 1) {
-      comboElement.textContent = `COMBO x${this.gameState.getComboCount()}`;
-    }
+    return false;
   }
 
   /**
@@ -428,14 +504,12 @@ export class Game {
   private gameLoop() {
     if (!this.isRunning) return;
 
-    // 更新输入管理器（阻尼效果）
     this.inputManager.update();
     
     // 检查Combo超时
-    if (this.gameState.getComboCount() > 0 && 
-        Date.now() - (this.gameState as any).lastActionTime > CONFIG.COMBO_TIMEOUT) {
-      console.log(`Combo断了！最高连击: x${this.gameState.getMaxCombo()}`);
-      this.gameState.resetCombo();
+    if (this.comboCount > 0 && Date.now() - this.lastActionTime > CONFIG.COMBO_TIMEOUT) {
+      console.log(`Combo断了!最高连击: x${this.comboCount}`);
+      this.comboCount = 0;
     }
 
     this.sceneManager.render();
@@ -447,7 +521,6 @@ export class Game {
    */
   pause() {
     this.isRunning = false;
-    this.gameState.pause();
   }
 
   /**
@@ -456,7 +529,6 @@ export class Game {
   resume() {
     if (!this.isRunning) {
       this.isRunning = true;
-      this.gameState.resume();
       this.gameLoop();
     }
   }

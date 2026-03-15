@@ -40,38 +40,39 @@ class App {
       });
     }
 
-    // X轴切面按钮
-    const btnSliceX = document.getElementById('btn-slice-x');
-    if (btnSliceX) {
-      let xIndex = 0;
-      btnSliceX.addEventListener('click', () => {
-        xIndex = (xIndex + 1) % 3;
-        this.game.showSlice('x', xIndex);
-        console.log(`X切面: ${xIndex}`);
-      });
-    }
+    // 设置切面按钮
+    this.setupSliceButtons();
+  }
 
-    // Y轴切面按钮
-    const btnSliceY = document.getElementById('btn-slice-y');
-    if (btnSliceY) {
-      let yIndex = 0;
-      btnSliceY.addEventListener('click', () => {
-        yIndex = (yIndex + 1) % 3;
-        this.game.showSlice('y', yIndex);
-        console.log(`Y切面: ${yIndex}`);
+  /**
+   * 设置切面按钮
+   */
+  private setupSliceButtons() {
+    const axes = ['x', 'y', 'z'] as const;
+    
+    axes.forEach(axis => {
+      const buttons = document.querySelectorAll(`[data-axis="${axis}"]`);
+      
+      buttons.forEach(button => {
+        button.addEventListener('click', (e) => {
+          const target = e.target as HTMLElement;
+          const index = parseInt(target.getAttribute('data-index') || '-1');
+          
+          // 更新按钮激活状态
+          buttons.forEach(btn => btn.classList.remove('active'));
+          target.classList.add('active');
+          
+          // 显示切面
+          if (index === -1) {
+            // ALL按钮：重置视图
+            this.game.resetView();
+          } else {
+            // 显示指定切面
+            this.game.showSlice(axis, index);
+          }
+        });
       });
-    }
-
-    // Z轴切面按钮
-    const btnSliceZ = document.getElementById('btn-slice-z');
-    if (btnSliceZ) {
-      let zIndex = 0;
-      btnSliceZ.addEventListener('click', () => {
-        zIndex = (zIndex + 1) % 3;
-        this.game.showSlice('z', zIndex);
-        console.log(`Z切面: ${zIndex}`);
-      });
-    }
+    });
   }
 }
 

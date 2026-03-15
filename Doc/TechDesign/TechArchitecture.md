@@ -1,294 +1,382 @@
-# CubeFight - 核心技术架构与实现 (Tech Design v2.0)
+# CubeFight - 核心技术架构与选型规划 (Tech Design)
 
 **作者**: Jeffy (主程序)  
-**平台**: H5 WebGL (CrazyGames)  
-**更新日期**: 2026-03-15 (完整重新实现)  
-**状态**: 核心系统完成，UI系统待实现
+**平台**: H5 WebGL (首发: CrazyGames)  
+**更新日期**: 2026-03-15 (重大重构)
 
 ---
 
-## 1. 架构概览
+## 1. 3D 引擎选型：Three.js (最终方案)
 
-### 1.1 核心系统架构
+**核心优势:**
+1. **极速上手**: 纯代码驱动,无需云端Editor,1小时可跑通Demo
+2. **包体极小**: 核心库仅 80KB (gzip),首屏加载 <1秒
+3. **调试友好**: 纯JS代码,Chrome DevTools直接断点调试,无黑盒
+4. **生态成熟**: CrazyGames平台大量Three.js游戏案例,兼容性有保障
+5. **性能充足**: 对于3x3x3 (27个Cube) 的场景,轻松跑满60FPS
 
+**技术栈:**
 ```
-Game (主控制器)
-├── GameStateManager (游戏状态管理)
-│   ├── 积分系统 (Score + Combo)
-│   ├── 金币系统 (Coin)
-│   ├── 游戏模式 (Campaign / Endless)
-│   └── 关卡管理
-├── MergeSystem (合成系统)
-│   ├── 蓝块+蓝块合成
-│   └── 黄块+黄块合成
-├── CombatSystem (吞噬系统)
-│   ├── 蓝块吃红块
-│   └── 蓝块吃黄块 (金币掉落)
-├── RedBlockSpawner (红块生成)
-│   ├── 动态补位模式
-│   └── 难度递进逻辑
-├── ItemSystem (道具系统)
-│   ├── 6种道具管理
-│   └── 道具效果执行
-└── Grid3D (3D网格数据结构)
-    └── 方块存储与查询
-```
-
-### 1.2 数据流
-
-```
-玩家点击方块
-    ↓
-InputManager 射线检测
-    ↓
-Game.handleCubeClick()
-    ↓
-canPerformAction() 检查规则
-    ↓
-MergeSystem / CombatSystem 执行操作
-    ↓
-GameStateManager 更新分数/金币/Combo
-    ↓
-RedBlockSpawner 生成新方块 (动态模式)
-    ↓
-checkGameOverCondition() 检查游戏结束
-    ↓
-updateScoreUI() 更新UI
+- Three.js r160+ (3D渲染)
+- Vite 5.x (构建工具,HMR秒级热更新)
+- TypeScript (类型安全)
+- GSAP (动画库,用于合成/消失特效)
 ```
 
 ---
 
-## 2. 核心系统详解
+## 2. 项目架构设计 (ECS变体 + MVC)
 
-### 2.1 GameStateManager (游戏状态管理)
+```
+src/
+├── core/
+│   ├── Game.ts              # 游戏主控制器
+│   ├── SceneManager.ts      # Three.js场景管理
+│   ├── InputManager.ts      # 输入事件统一处理
+│   ├── Config.ts            # 全局配置
+│   └── GameState.ts         # 游戏状态管理
+├── entities/
+│   ├── Cube.ts              # 方块实体类
+│   ├── CubePool.ts          # 对象池
+│   └── Grid3D.ts            # 3x3x3阵列数据结构
+├── systems/
+│   ├── GameLogicSystem.ts   # 游戏逻辑系统(合成/吞噬)
+│   ├── SpawnSystem.ts       # 方块生成系统
+│   ├── ComboSystem.ts       # 连击系统
+│   ├── SliceSystem.ts       # 剖面切割
+│   └── ScoreSystem.ts       # 积分/金币系统
+├── managers/
+│   ├── LevelManager.ts      # 关卡管理
+│   ├── ItemManager.ts       # 道具管理
+│   └── AudioManager.ts      # 音效管理
+├── ui/
+│   ├── UIManager.ts         # UI控制器
+│   ├── HUD.ts               # 分数/Combo/道具显示
+│   └── MenuSystem.ts        # 菜单系统
+├── sdk/
+│   └── CrazyGamesSDK.ts     # 广告/排行榜封装
+└── main.ts                  # 入口
+```
 
-**职责**:
-- 管理单局游戏的所有数值状态
-- 维护历史统计数据（用于排行榜）
-- 管理Combo系统和超时逻辑
+---
 
-**关键方法**:
+## 3. 核心数值系统实现
+
+### 3.1 双轨经济模型
 ```typescript
-addScore(baseScore: number): number          // 添加分数（自动应用Combo乘数）
-addCoin(amount: number): void                // 添加金币
-updateCombo(): void                          // 更新Combo计数
-updateMaxMergedLevel(level: number): void    // 更新最高合成等级
-getSessionStats(): object                    // 获取本局统计数据
+// 积分(Score): 纯荣誉数值,用于排行榜
+// 金币(Coin): 购买力货币,用于购买皮肤
+
+interface EconomyConfig {
+  // 1-9级积分收益(指数增长)
+  SCORE_TABLE: [10, 30, 80, 200, 500, 1200, 3000, 8000, 25000];
+  
+  // 1-9级金币收益(仅吃黄块掉落)
+  COIN_TABLE: [1, 3, 8, 20, 50, 120, 300, 800, 2500];
+  
+  // Combo乘数
+  COMBO_MULTIPLIER: (combo: number) => Math.max(1, combo);
+}
 ```
 
-**数值特性**:
-- Combo超时: 3秒无操作则重置
-- 分数乘数: Combo x1 ~ x∞
-- 金币掉落: 仅在无尽模式且吃黄块时触发
-
-### 2.2 MergeSystem (合成系统)
-
-**规则** (按GameplayDesign.md):
-- 蓝块+蓝块 → 蓝块+1级
-- 黄块+黄块 → 黄块+1级
-- 必须同等级、相邻、等级<9
-
-**数值** (按EconomyAndNumbers.md):
-| 等级 | 积分 | 金币(黄块) | 视觉特效 |
-|------|------|-----------|--------|
-| 1 | 10 | 1 | 基础 |
-| 2 | 30 | 3 | 火花 |
-| ... | ... | ... | ... |
-| 9 | 25000 | 2500 | 神级 |
-
-**关键方法**:
+### 3.2 方块生成逻辑
 ```typescript
-canMerge(cube1: Cube, cube2: Cube): boolean
-performMerge(sourceCube: Cube, targetCube: Cube): Promise<{newLevel, score, coin}>
+class SpawnSystem {
+  // 红块生成等级 = [1, Max(1, 场上最高蓝块等级 - 1)]
+  getRedSpawnLevel(): number {
+    const maxBlueLevel = this.getMaxBlueLevelOnGrid();
+    const minLevel = 1;
+    const maxLevel = Math.max(1, maxBlueLevel - 1);
+    return Math.floor(Math.random() * (maxLevel - minLevel + 1)) + minLevel;
+  }
+  
+  // 黄块生成等级 = [1, 3] (前期) / [1, 5] (中期)
+  getYellowSpawnLevel(gameProgress: number): number {
+    const maxLevel = gameProgress < 0.5 ? 3 : 5;
+    return Math.floor(Math.random() * maxLevel) + 1;
+  }
+}
 ```
 
-### 2.3 CombatSystem (吞噬系统)
+---
 
-**规则**:
-- 蓝块吃红块: 蓝等级 >= 红等级
-- 蓝块吃黄块: 蓝等级 >= 黄等级
-- 黄块吃红块: 不支持
-- 黄块吃黄块: 使用MergeSystem
+## 4. 核心交互实现
 
-**金币掉落**:
-- 闯关模式: 黄块吃掉不掉落金币
-- 无尽模式: 黄块吃掉按等级掉落金币
-
-**分数计算**:
-- 吃红块: 基础分数 = LEVEL_VALUES[level].score
-- 吃黄块: 基础分数 = LEVEL_VALUES[level].score × 2 (翻倍!)
-
-### 2.4 RedBlockSpawner (红块生成)
-
-**动态补位模式** (无尽模式):
-- 每次操作后自动生成1个红块
-- 红块等级根据当前分数递进
-
-**难度递进** (按EconomyAndNumbers.md):
+### 4.1 轨道控制器(符合GameplayDesign.md规范)
+```typescript
+class InputManager {
+  private azimuthAngle: number = 0;        // 水平环绕(Yaw)
+  private polarAngle: number = Math.PI / 4; // 俯仰角(Pitch)
+  
+  // 严格限制俯仰角 -15°到+15°(接近平视)
+  private readonly MIN_POLAR_ANGLE = THREE.MathUtils.degToRad(60); // 75度(俯视15度)
+  private readonly MAX_POLAR_ANGLE = THREE.MathUtils.degToRad(105); // 105度(仰视15度)
+  
+  // 阻尼惯性
+  private velocity = { azimuth: 0, polar: 0 };
+  private readonly DAMPING = 0.9;
+  
+  updateCameraPosition() {
+    // 球坐标转笛卡尔坐标
+    const x = distance * Math.sin(polarAngle) * Math.sin(azimuthAngle);
+    const y = distance * Math.cos(polarAngle);
+    const z = distance * Math.sin(polarAngle) * Math.cos(azimuthAngle);
+    
+    camera.position.set(x, y, z);
+    camera.lookAt(0, 0, 0);
+    camera.up.set(0, 1, 0); // 地平线锁定
+  }
+}
 ```
-0分: 1级红块
-1000分: 2级红块
-3000分: 3级红块
-8000分: 4级红块
-20000分: 5级红块
+
+### 4.2 智能高亮系统
+```typescript
+// 选中蓝块后,自动高亮可操作目标
+highlightValidTargets(sourceCube: Cube) {
+  const neighbors = grid.getNeighbors(x, y, z);
+  
+  neighbors.forEach(neighbor => {
+    if (canPerformAction(sourceCube, neighbor.cube)) {
+      neighbor.cube.setHighlight(true);  // 绿色边框
+    } else {
+      neighbor.cube.setDimmed(true);     // 透明度0.3
+    }
+  });
+}
 ```
 
-**静态解谜模式** (闯关模式):
-- 不自动生成红块
-- 开局固定数量
-
-### 2.5 ItemSystem (道具系统)
-
-**6种道具**:
-1. **精准打击 (BOMB)**: 摧毁任意方块
-2. **空间降维 (DOWNGRADE_HAMMER)**: 方块等级-1
-3. **色彩置换 (COLOR_SWAP)**: 红块→蓝/黄
-4. **彩虹块 (RAINBOW_BLOCK)**: 任意合成
-5. **大地震 (EARTHQUAKE)**: 重新洗牌
-6. **轨道炮 (ORBITAL_CANNON)**: 十字星爆
-
-**获取方式**:
-- 吃掉高级黄块随机掉落
-- 观看激励视频获取 (限次)
-
----
-
-## 3. 游戏模式
-
-### 3.1 闯关模式 (Campaign)
-
-**特性**:
-- 刷新模式: 静态解谜 (不自动生成)
-- 红块上限: 5级
-- 金币掉落: 禁用
-- 通关奖励: 固定金币
-
-**流程**:
-1. 开局固定生成方块
-2. 玩家通过合成/吞噬达成目标
-3. 达成目标 → 通关 → 获得金币 → 解锁下一关
-
-### 3.2 无尽模式 (Endless)
-
-**特性**:
-- 刷新模式: 动态补位 (自动生成)
-- 红块上限: 9级
-- 金币掉落: 启用
-- 难度递进: 根据分数
-
-**流程**:
-1. 开局随机生成蓝块和黄块
-2. 每次操作后自动补充红块
-3. 红块等级随分数提升
-4. 棋盘满且无可操作 → Game Over → 结算
+### 4.3 Combo系统
+```typescript
+class ComboSystem {
+  private comboCount: number = 0;
+  private lastActionTime: number = 0;
+  private readonly COMBO_TIMEOUT = 3000; // 3秒超时
+  
+  updateCombo(): number {
+    const now = Date.now();
+    if (now - this.lastActionTime > this.COMBO_TIMEOUT) {
+      this.comboCount = 0; // 超时重置
+    }
+    this.comboCount++;
+    this.lastActionTime = now;
+    return this.comboCount;
+  }
+  
+  getMultiplier(): number {
+    return Math.max(1, this.comboCount);
+  }
+}
+```
 
 ---
 
-## 4. 已实现的核心功能
+## 5. 游戏模式实现
 
-### ✅ 完成
+### 5.1 关卡模式
+```typescript
+interface LevelConfig {
+  id: number;
+  name: string;
+  gridSize: 3 | 4 | 5;
+  initialCubes: CubeSpawnData[];
+  spawnMode: 'static' | 'dynamic';
+  objective: {
+    type: 'merge' | 'devour' | 'score';
+    target: number;
+  };
+  reward: {
+    coins: number;
+  };
+}
 
-- [x] 3D网格数据结构 (Grid3D)
-- [x] 方块实体类 (Cube) - 含升级/降级/变色动画
-- [x] 游戏状态管理 (GameStateManager)
-- [x] 合成系统 (MergeSystem)
-- [x] 吞噬系统 (CombatSystem)
-- [x] 红块生成系统 (RedBlockSpawner)
-- [x] 道具系统 (ItemSystem)
-- [x] 轨道控制器 (InputManager)
-- [x] 剖面切割系统 (SliceSystem)
-- [x] 智能高亮系统
-- [x] Combo系统 (3秒超时)
-- [x] 游戏结束检测
+// 示例: 第1关(纯教学)
+const LEVEL_1: LevelConfig = {
+  id: 1,
+  name: "初识合成",
+  gridSize: 3,
+  initialCubes: [
+    { color: 'blue', level: 1, x: 0, y: 0, z: 0 },
+    { color: 'blue', level: 1, x: 1, y: 0, z: 0 },
+    { color: 'yellow', level: 1, x: 2, y: 0, z: 0 }
+  ],
+  spawnMode: 'static',
+  objective: { type: 'merge', target: 2 }, // 合成一个2级蓝块
+  reward: { coins: 50 }
+};
+```
 
-### ⏳ 待实现
-
-- [ ] 完整UI系统 (分数/Combo/道具栏/模式选择)
-- [ ] 关卡模式框架 (30关设计)
-- [ ] 音效系统
-- [ ] CrazyGames SDK对接 (广告/排行榜)
-- [ ] 皮肤系统
-- [ ] 性能优化 (GPU Instancing)
-- [ ] 移动端适配
-
----
-
-## 5. 关键设计决策
-
-### 5.1 数值系统
-
-**为什么合成收益 > 2倍?**
-- 2合1的成本很高（需要找到同级方块）
-- 收益必须 > 2倍才能激励玩家冒险合成
-- 指数级膨胀保证高级方块的爽感
-
-**为什么黄块吃掉分数翻倍?**
-- 黄块是稀缺资源（需要合成）
-- 翻倍分数激励玩家追求高级黄块
-- 形成"贪心"博弈动机
-
-### 5.2 游戏模式
-
-**为什么分离闯关和无尽?**
-- 闯关: 教学 + 目标感 + 前期变现
-- 无尽: 挑战 + 排行榜 + 长线留存
-
-**为什么无尽模式自动生成红块?**
-- 保证游戏压力持续上升
-- 防止玩家无限刷分
-- 自然形成Game Over
-
-### 5.3 Combo系统
-
-**为什么3秒超时?**
-- 足够快速玩家连续操作
-- 足够长防止误触重置
-- 心理学上的"流"状态时间
-
----
-
-## 6. 性能指标
-
-### 当前性能
-
-- **DrawCall**: 27个Cube → 3个 (按颜色分组)
-- **内存占用**: ~50MB (包含Three.js)
-- **首屏加载**: <1秒
-- **FPS**: 60 (移动端可能降至30)
-
-### 优化方案
-
-1. **GPU Instancing**: 同色同级方块合并为1个DrawCall
-2. **对象池**: 复用Cube实例，减少GC压力
-3. **LOD系统**: 远处方块降低细节
-4. **资源压缩**: glTF/GLB + Draco压缩
+### 5.2 无尽模式
+```typescript
+class EndlessMode {
+  private score: number = 0;
+  private spawnInterval: number = 1000; // 初始1秒刷新一次
+  
+  update(deltaTime: number) {
+    // 动态难度: 分数越高,刷新越快
+    this.spawnInterval = Math.max(300, 1000 - this.score / 100);
+    
+    // 每次操作后在空位生成红块
+    if (this.shouldSpawn()) {
+      const emptyPos = this.grid.getRandomEmptyPosition();
+      if (emptyPos) {
+        const level = this.getRedSpawnLevel();
+        this.spawnRedCube(emptyPos, level);
+      }
+    }
+    
+    // 检查Game Over
+    if (this.grid.isFull() && !this.hasValidMoves()) {
+      this.gameOver();
+    }
+  }
+}
+```
 
 ---
 
-## 7. 下一步计划
+## 6. 道具系统实现
 
-### Phase 2 (UI系统)
-- [ ] HUD显示 (分数/金币/Combo)
-- [ ] 道具栏UI
-- [ ] 游戏结束面板
-- [ ] 模式选择界面
+```typescript
+enum ItemType {
+  BOMB = 'bomb',           // 精准打击
+  HAMMER = 'hammer',       // 降级锤
+  PAINT = 'paint',         // 色彩置换
+  RAINBOW = 'rainbow',     // 万能块
+  SHUFFLE = 'shuffle',     // 重力洗牌
+  LASER = 'laser'          // 十字星爆
+}
 
-### Phase 3 (关卡系统)
-- [ ] 30关设计
-- [ ] 关卡目标系统
-- [ ] 难度曲线
-
-### Phase 4 (平台对接)
-- [ ] CrazyGames SDK
-- [ ] 广告系统
-- [ ] 排行榜上报
-
-### Phase 5 (优化)
-- [ ] 性能优化
-- [ ] 移动端适配
-- [ ] 音效系统
+class ItemManager {
+  private inventory: Map<ItemType, number> = new Map();
+  
+  useItem(type: ItemType, target: Cube) {
+    switch(type) {
+      case ItemType.BOMB:
+        this.destroyCube(target);
+        break;
+      case ItemType.HAMMER:
+        target.level = Math.max(1, target.level - 1);
+        break;
+      case ItemType.PAINT:
+        target.color = CubeColor.BLUE;
+        break;
+      // ... 其他道具
+    }
+    
+    this.inventory.set(type, this.inventory.get(type)! - 1);
+  }
+}
+```
 
 ---
 
-**最后更新**: 2026-03-15 14:00  
-**重大进展**: 完整重新实现了核心游戏逻辑系统，所有关键系统已集成到Game.ts中。项目已可编译运行。
+## 7. CrazyGames SDK 接入
+
+### 7.1 激励视频封装
+```typescript
+class AdsManager {
+  async showRewardedAd(type: 'revive' | 'item' | 'double'): Promise<boolean> {
+    game.pause();
+    
+    try {
+      await window.CrazyGames.SDK.ad.requestAd('rewarded');
+      return true; // 用户看完广告
+    } catch (error) {
+      console.error('Ad failed:', error);
+      return false;
+    } finally {
+      game.resume();
+    }
+  }
+  
+  // 插屏广告(每3-5关)
+  async showInterstitial() {
+    await window.CrazyGames.SDK.ad.requestAd('midgame');
+  }
+}
+```
+
+### 7.2 排行榜上报
+```typescript
+class LeaderboardManager {
+  submitEndlessScore(score: number, maxLevel: number) {
+    // 提交到"无尽之王"周榜
+    window.CrazyGames.SDK.game.showInviteButton();
+  }
+  
+  submitTotalCoins(totalCoins: number) {
+    // 提交到"方块大亨"永久榜
+  }
+}
+```
+
+---
+
+## 8. 性能优化策略
+
+### 8.1 对象池
+```typescript
+class CubePool {
+  private pool: Cube[] = [];
+  
+  acquire(color: CubeColor, level: number): Cube {
+    const cube = this.pool.pop() || new Cube();
+    cube.reset(color, level);
+    return cube;
+  }
+  
+  release(cube: Cube) {
+    cube.mesh.visible = false;
+    this.pool.push(cube);
+  }
+}
+```
+
+### 8.2 GPU Instancing(后期优化)
+对于同色同级方块,使用 `THREE.InstancedMesh` 批量渲染,将DrawCall从27降至3。
+
+---
+
+## 9. 关键设计决策记录
+
+### 9.1 无重力系统
+**决策**: 方块消失后不会掉落填补  
+**原因**: 强调空间预判与策略性,避免变成传统消除游戏  
+**影响**: 需要设计动态刷新机制防止空位过多
+
+### 9.2 Combo超时时间: 3秒
+**决策**: 3秒内连续操作才能维持Combo  
+**原因**: 平衡策略思考与快速操作,3秒是经过测试的最佳值  
+**数据来源**: 参考《GameplayDesign.md》第52行
+
+### 9.3 红块生成等级上限
+**决策**: 红块等级 ≤ 场上最高蓝块等级 - 1  
+**原因**: 保证玩家永远有翻盘机会,不会被超级红块直接卡死  
+**数据来源**: 参考《LevelDesign.md》第34行
+
+---
+
+## 10. 待实现功能清单
+
+**Day 2 (03-15 今天):**
+- [x] 更新技术架构文档
+- [ ] 实现双轨经济系统(积分+金币)
+- [ ] 实现方块生成系统(红块/黄块动态刷新)
+- [ ] 实现黄块合成逻辑
+- [ ] 实现道具系统框架
+- [ ] 实现关卡模式框架
+- [ ] 实现无尽模式框架
+- [ ] 完善UI系统(HUD/菜单)
+
+**Day 3 (03-16 周一 - Feature Freeze):**
+- [ ] CrazyGames SDK完整对接
+- [ ] 音效系统接入
+- [ ] 性能优化(对象池/GPU Instancing)
+- [ ] 移动端适配测试
+- [ ] 30个关卡配置
+- [ ] 皮肤系统基础框架
+
+---
+
+**最后更新**: 2026-03-15 10:00  
+**当前状态**: 重构中,基于设计文档重新实现完整游戏逻辑

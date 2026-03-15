@@ -39,12 +39,95 @@
       top: 20px;
       left: 20px;
       color: white;
-      font-size: 24px;
+      font-size: 20px;
       font-weight: bold;
       text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
       pointer-events: auto;
+      background: rgba(0,0,0,0.3);
+      padding: 10px 20px;
+      border-radius: 10px;
+      backdrop-filter: blur(10px);
     }
-    #controls {\n      position: absolute;\n      bottom: 20px;\n      left: 50%;\n      transform: translateX(-50%);\n      display: flex;\n      flex-direction: column;\n      gap: 10px;\n      pointer-events: auto;\n    }\n    .control-row {\n      display: flex;\n      gap: 10px;\n      justify-content: center;\n    }
+    #info {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      color: white;
+      font-size: 14px;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+      pointer-events: auto;
+      background: rgba(0,0,0,0.3);
+      padding: 10px 15px;
+      border-radius: 10px;
+      backdrop-filter: blur(10px);
+      text-align: right;
+    }
+    #controls {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      pointer-events: auto;
+    }
+    .control-row {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+    }
+    #slice-controls {
+      position: absolute;
+      right: 20px;
+      top: 50%;
+      transform: translateY(-50%);
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      pointer-events: auto;
+    }
+    .slice-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      background: rgba(0,0,0,0.3);
+      padding: 10px;
+      border-radius: 10px;
+      backdrop-filter: blur(10px);
+    }
+    .slice-label {
+      color: white;
+      font-size: 12px;
+      text-align: center;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+    .slice-buttons {
+      display: flex;
+      gap: 5px;
+    }
+    .slice-btn {
+      width: 40px;
+      height: 40px;
+      background: rgba(255,255,255,0.2);
+      border: 2px solid white;
+      border-radius: 8px;
+      color: white;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+      backdrop-filter: blur(10px);
+      transition: all 0.3s;
+    }
+    .slice-btn:hover {
+      background: rgba(255,255,255,0.3);
+      transform: scale(1.05);
+    }
+    .slice-btn.active {
+      background: rgba(59, 130, 246, 0.8);
+      border-color: #3b82f6;
+    }
     .btn {
       padding: 10px 20px;
       background: rgba(255,255,255,0.2);
@@ -68,13 +151,49 @@
 <body>
   <div id="app">
     <div id="ui-overlay">
-      <div id="score">Score: 0</div>
-      <div id="controls">
-        <div class="control-row">
-          <button class="btn" id="btn-slice-y">顶视图(Y)</button>
-          <button class="btn" id="btn-slice-x">侧视图(X)</button>
-          <button class="btn" id="btn-slice-z">前视图(Z)</button>
+      <div id="score">Score: 0 | Coins: 0</div>
+      <div id="info">
+        <div>🎮 CubeFight</div>
+        <div style="font-size: 12px; margin-top: 5px;">无尽模式</div>
+      </div>
+      
+      <!-- 切面控制 -->
+      <div id="slice-controls">
+        <!-- Y轴（层） -->
+        <div class="slice-group">
+          <div class="slice-label">层 (Y)</div>
+          <div class="slice-buttons" id="slice-y-buttons">
+            <button class="slice-btn" data-axis="y" data-index="0">0</button>
+            <button class="slice-btn" data-axis="y" data-index="1">1</button>
+            <button class="slice-btn" data-axis="y" data-index="2">2</button>
+            <button class="slice-btn active" data-axis="y" data-index="-1">ALL</button>
+          </div>
         </div>
+        
+        <!-- X轴（列） -->
+        <div class="slice-group">
+          <div class="slice-label">列 (X)</div>
+          <div class="slice-buttons" id="slice-x-buttons">
+            <button class="slice-btn" data-axis="x" data-index="0">0</button>
+            <button class="slice-btn" data-axis="x" data-index="1">1</button>
+            <button class="slice-btn" data-axis="x" data-index="2">2</button>
+            <button class="slice-btn active" data-axis="x" data-index="-1">ALL</button>
+          </div>
+        </div>
+        
+        <!-- Z轴（行） -->
+        <div class="slice-group">
+          <div class="slice-label">行 (Z)</div>
+          <div class="slice-buttons" id="slice-z-buttons">
+            <button class="slice-btn" data-axis="z" data-index="0">0</button>
+            <button class="slice-btn" data-axis="z" data-index="1">1</button>
+            <button class="slice-btn" data-axis="z" data-index="2">2</button>
+            <button class="slice-btn active" data-axis="z" data-index="-1">ALL</button>
+          </div>
+        </div>
+      </div>
+      
+      <div id="controls">
         <div class="control-row">
           <button class="btn" id="btn-reset">重置视角</button>
         </div>

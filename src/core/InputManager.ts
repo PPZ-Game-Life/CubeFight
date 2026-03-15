@@ -15,15 +15,15 @@ export class InputManager {
   private isDragging: boolean = false;
   private previousMousePosition = { x: 0, y: 0 };
   private azimuthAngle: number = 0;        // 水平环绕角度（Yaw）
-  private polarAngle: number = Math.PI / 3; // 俯仰角（Pitch），初始60度
+  private polarAngle: number = Math.PI / 2; // 俯仰角（Pitch），初始90度（平视）
   private distance: number = 8;             // 相机距离
   private target = new THREE.Vector3(0, 0, 0); // 观察目标点
   
-  // 角度限制（按设计文档：上下各留15度缓冲）
+  // 角度限制（按用户需求：-15度到+15度，即75度到105度）
   // polarAngle: 0° = 正上方俯视, 90° = 平视, 180° = 正下方
-  // 限制范围：15° 到 85°（既能俯视看顶面，又不会太平）
-  private readonly MIN_POLAR_ANGLE = THREE.MathUtils.degToRad(15);
-  private readonly MAX_POLAR_ANGLE = THREE.MathUtils.degToRad(85);
+  // 限制范围：75° 到 105°（平视上下各15度）
+  private readonly MIN_POLAR_ANGLE = THREE.MathUtils.degToRad(75);  // 俯视15度
+  private readonly MAX_POLAR_ANGLE = THREE.MathUtils.degToRad(105); // 仰视15度
   
   // 阻尼参数
   private velocity = { azimuth: 0, polar: 0 };
@@ -67,7 +67,7 @@ export class InputManager {
    * 鼠标按下
    */
   private onPointerDown(event: MouseEvent) {
-    this.isDragging = false; // 先假设不是拖拽
+    this.isDragging = true; // 按下就开始拖拽模式
     this.clickStartTime = Date.now();
     this.clickStartPosition = {
       x: event.clientX,
@@ -83,15 +83,6 @@ export class InputManager {
    * 鼠标移动（轨道旋转）
    */
   private onPointerMove(event: MouseEvent) {
-    // 检查是否移动超过阈值
-    const deltaX = event.clientX - this.clickStartPosition.x;
-    const deltaY = event.clientY - this.clickStartPosition.y;
-    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-    
-    if (distance > this.DRAG_THRESHOLD) {
-      this.isDragging = true;
-    }
-
     if (!this.isDragging) return;
 
     const moveDeltaX = event.clientX - this.previousMousePosition.x;
@@ -107,6 +98,10 @@ export class InputManager {
       Math.min(this.MAX_POLAR_ANGLE, this.polarAngle)
     );
 
+    // 设置速度用于阻尼
+    this.velocity.azimuth = -moveDeltaX * this.SENSITIVITY;
+    this.velocity.polar = moveDeltaY * this.SENSITIVITY;
+
     this.updateCameraPosition();
 
     this.previousMousePosition = {
@@ -118,10 +113,23 @@ export class InputManager {
   /**
    * 鼠标抬起
    */
-  private onPointerUp() {
-    this.isDragging = false;
-    // 立即停止速度，不再滑动
-    this.velocity = { azimuth: 0, polar: 0 };
+  private onPointerUp(event: MouseEvent) {
+    // 检查是否是点击（移动距离小且时间短）
+    const deltaX = event.clientX - this.clickStartPosition.x;
+    const deltaY = event.clientY - this.clickStartPosition.y;
+    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+    const duration = Date.now() - this.clickStartTime;
+    
+    // 如果移动距离小于阈值且时间短，保持isDragging为false以便触发点击
+    if (distance < this.DRAG_THRESHOLD && duration < this.CLICK_THRESHOLD) {
+      // 这是一个点击，不是拖拽
+      this.isDragging = false;
+    }
+    
+    // 延迟重置isDragging，让click事件能正确判断
+    setTimeout(() => {
+      this.isDragging = false;
+    }, 10);
   }
 
   /**
@@ -155,7 +163,7 @@ export class InputManager {
   private onTouchStart(event: TouchEvent) {
     event.preventDefault();
     if (event.touches.length === 1) {
-      this.isDragging = false;
+      this.isDragging = true; // 触摸开始就进入拖拽模式
       this.clickStartTime = Date.now();
       this.clickStartPosition = {
         x: event.touches[0].clientX,
@@ -173,28 +181,20 @@ export class InputManager {
    */
   private onTouchMove(event: TouchEvent) {
     event.preventDefault();
-    if (event.touches.length !== 1) return;
+    if (!this.isDragging || event.touches.length !== 1) return;
 
-    // 检查是否移动超过阈值
-    const deltaX = event.touches[0].clientX - this.clickStartPosition.x;
-    const deltaY = event.touches[0].clientY - this.clickStartPosition.y;
-    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-    
-    if (distance > this.DRAG_THRESHOLD) {
-      this.isDragging = true;
-    }
+    const deltaX = event.touches[0].clientX - this.previousMousePosition.x;
+    const deltaY = event.touches[0].clientY - this.previousMousePosition.y;
 
-    if (!this.isDragging) return;
-
-    const moveDeltaX = event.touches[0].clientX - this.previousMousePosition.x;
-    const moveDeltaY = event.touches[0].clientY - this.previousMousePosition.y;
-
-    this.azimuthAngle -= moveDeltaX * this.SENSITIVITY;
-    this.polarAngle += moveDeltaY * this.SENSITIVITY;
+    this.azimuthAngle -= deltaX * this.SENSITIVITY;
+    this.polarAngle += deltaY * this.SENSITIVITY;
     this.polarAngle = Math.max(
       this.MIN_POLAR_ANGLE,
       Math.min(this.MAX_POLAR_ANGLE, this.polarAngle)
     );
+
+    this.velocity.azimuth = -deltaX * this.SENSITIVITY;
+    this.velocity.polar = deltaY * this.SENSITIVITY;
 
     this.updateCameraPosition();
 
@@ -208,18 +208,24 @@ export class InputManager {
    * 触摸结束
    */
   private onTouchEnd(event: TouchEvent) {
-    if (event.touches.length === 0) {
-      this.isDragging = false;
-      // 立即停止速度，不再滑动
-      this.velocity = { azimuth: 0, polar: 0 };
-    }
-
-    // 单击检测
+    // 检查是否是点击
     if (event.changedTouches.length === 1) {
       const touch = event.changedTouches[0];
-      this.mouse.x = (touch.clientX / window.innerWidth) * 2 - 1;
-      this.mouse.y = -(touch.clientY / window.innerHeight) * 2 + 1;
-      this.performRaycast();
+      const deltaX = touch.clientX - this.clickStartPosition.x;
+      const deltaY = touch.clientY - this.clickStartPosition.y;
+      const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+      const duration = Date.now() - this.clickStartTime;
+      
+      // 如果移动距离小且时间短，触发点击
+      if (distance < this.DRAG_THRESHOLD && duration < this.CLICK_THRESHOLD) {
+        this.mouse.x = (touch.clientX / window.innerWidth) * 2 - 1;
+        this.mouse.y = -(touch.clientY / window.innerHeight) * 2 + 1;
+        this.performRaycast();
+      }
+    }
+    
+    if (event.touches.length === 0) {
+      this.isDragging = false;
     }
   }
 
@@ -273,11 +279,21 @@ export class InputManager {
    * 更新阻尼（每帧调用）
    */
   update() {
-    // 只有在拖拽时才应用速度，抬起时立即停止
-    // 禁用惯性滑动，确保用户体验
-    if (this.isDragging && (Math.abs(this.velocity.azimuth) > 0.0001 || Math.abs(this.velocity.polar) > 0.0001)) {
-      // 实际上在拖拽时速度已经在onPointerMove中应用了
-      // 这里只是保留接口，不做额外处理
+    if (!this.isDragging && (Math.abs(this.velocity.azimuth) > 0.0001 || Math.abs(this.velocity.polar) > 0.0001)) {
+      this.azimuthAngle += this.velocity.azimuth;
+      this.polarAngle += this.velocity.polar;
+      
+      // 限制俯仰角
+      this.polarAngle = Math.max(
+        this.MIN_POLAR_ANGLE,
+        Math.min(this.MAX_POLAR_ANGLE, this.polarAngle)
+      );
+
+      this.updateCameraPosition();
+
+      // 阻尼衰减
+      this.velocity.azimuth *= this.DAMPING;
+      this.velocity.polar *= this.DAMPING;
     }
   }
 
@@ -287,7 +303,7 @@ export class InputManager {
   resetView() {
     gsap.to(this, {
       azimuthAngle: 0,
-      polarAngle: Math.PI / 3, // 60度
+      polarAngle: Math.PI / 2, // 90度（平视）
       duration: 0.5,
       ease: 'power2.out',
       onUpdate: () => this.updateCameraPosition()
