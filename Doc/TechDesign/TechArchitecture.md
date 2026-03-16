@@ -106,11 +106,11 @@ class SpawnSystem {
 ```typescript
 class InputManager {
   private azimuthAngle: number = 0;        // 水平环绕(Yaw)
-  private polarAngle: number = Math.PI / 4; // 俯仰角(Pitch)
+  private polarAngle: number = Math.PI / 2; // 俯仰角(Pitch)
   
-  // 严格限制俯仰角 -15°到+15°(接近平视)
-  private readonly MIN_POLAR_ANGLE = THREE.MathUtils.degToRad(60); // 75度(俯视15度)
-  private readonly MAX_POLAR_ANGLE = THREE.MathUtils.degToRad(105); // 105度(仰视15度)
+  // 当前试玩版按体验微调为 -25°到+25°
+  private readonly MIN_POLAR_ANGLE = THREE.MathUtils.degToRad(65);
+  private readonly MAX_POLAR_ANGLE = THREE.MathUtils.degToRad(115);
   
   // 阻尼惯性
   private velocity = { azimuth: 0, polar: 0 };
@@ -128,6 +128,38 @@ class InputManager {
   }
 }
 ```
+
+### 4.2 方块多面等级数字
+```typescript
+class Cube {
+  private levelCanvas = document.createElement('canvas');
+  private levelTexture = new THREE.CanvasTexture(this.levelCanvas);
+  private levelSprites = [front, back, left, right, top, bottom];
+
+  private refreshLevelLabel() {
+    // Canvas绘制白色描边数字，并复用到六个面的Sprite材质
+  }
+
+  updateLevelLabelVisibility(camera) {
+    // 用面法线 dot 相机方向，只有朝向玩家的面才显示
+    // Sprite始终面向相机，保证玩家读到的是正字
+  }
+}
+```
+- **根因修复**: 不再依赖固定Plane朝向+背面剔除，而是改为“六面锚点 + 相机朝向Sprite”。这样相机绕Y轴旋转后，可见面会重新计算，数字也会始终正向朝向玩家。
+
+### 4.3 切面UI与视角相关列选择
+- **层(Y)**: 右侧纵向按钮 `0 / 1 / 2 / ALL`，但语义是“从上到下”；`0` 永远代表最上层。
+- **列(X)**: 底部横向按钮 `0 / 1 / 2 / ALL`，但按钮语义是“当前屏幕从左到右的列”。
+- **重映射时机**: 相机绕Y轴旋转后，现有列切面不会自动跳变；玩家再次点击列按钮时，系统才按当前朝向重新解释 `0/1/2`。
+- **实现原则**: 用相机当前 `azimuthAngle` 判断朝向象限，再把屏幕列索引映射到世界 `x/z` 切面。
+
+### 4.4 操作落点规则统一
+- **第一下点击**: 选择主动执行动作的方块。
+- **第二下点击**: 决定结果落点格子。
+- **吞噬**: 主动方块移动到第二下点击的目标格子。
+- **合成**: 无论蓝蓝还是黄黄，主动方块都移动到第二下点击的目标格子，然后在该位置升级。
+- **设计收益**: 玩家只需要记住一个规则——“后点谁，结果落谁那里”。
 
 ### 4.2 智能高亮系统
 ```typescript
@@ -353,6 +385,25 @@ class CubePool {
 **决策**: 红块等级 ≤ 场上最高蓝块等级 - 1  
 **原因**: 保证玩家永远有翻盘机会,不会被超级红块直接卡死  
 **数据来源**: 参考《LevelDesign.md》第34行
+
+### 9.4 UI本地化强制规范
+**决策**: 所有UI文案必须支持本地化, 当前至少支持 `zh-CN` 与 `en` 两种语言。  
+**原因**: CrazyGames 面向全球发行, UI硬编码中文会直接阻断英文玩家理解与转化。  
+**实现要求**:
+- 禁止在业务逻辑和UI组件中硬编码最终显示文案。
+- 所有按钮、标题、提示、结算文案、道具名、模式名统一走 i18n 字典读取。
+- 默认语言跟随浏览器语言, 不命中时回退到英文。
+- 中文与英文都必须参与验收, 不能只做中文皮肤再临时翻译。
+
+### 9.5 手机端与竖屏适配强制规范
+**决策**: 所有新功能实现必须默认支持移动端触控, 并优先保证竖屏体验可用。  
+**原因**: H5小游戏核心流量大量来自移动端, 竖屏是更高频的单手操作场景。  
+**实现要求**:
+- 输入系统必须同时支持鼠标与触摸, 不允许只针对PC交互设计。
+- UI布局需要优先验证竖屏安全区, 核心按钮不可被遮挡或超出拇指热区。
+- 切面按钮、确认按钮、道具按钮等交互元素需满足触屏点击尺寸要求。
+- 相机控制、点击选块、切面操作都必须在手机竖屏下可稳定完成。
+- 后续新增HUD或弹窗时, 先验证 `9:16` 竖屏, 再补横屏兼容。
 
 ---
 

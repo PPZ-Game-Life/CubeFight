@@ -19,11 +19,11 @@ export class InputManager {
   private distance: number = 8;             // 相机距离
   private target = new THREE.Vector3(0, 0, 0); // 观察目标点
   
-  // 角度限制（按用户需求：-15度到+15度，即75度到105度）
+  // 角度限制（按用户需求：-25度到+25度，即65度到115度）
   // polarAngle: 0° = 正上方俯视, 90° = 平视, 180° = 正下方
-  // 限制范围：75° 到 105°（平视上下各15度）
-  private readonly MIN_POLAR_ANGLE = THREE.MathUtils.degToRad(75);  // 俯视15度
-  private readonly MAX_POLAR_ANGLE = THREE.MathUtils.degToRad(105); // 仰视15度
+  // 限制范围：65° 到 115°（平视上下各25度）
+  private readonly MIN_POLAR_ANGLE = THREE.MathUtils.degToRad(65);
+  private readonly MAX_POLAR_ANGLE = THREE.MathUtils.degToRad(115);
   
   // 阻尼参数
   private velocity = { azimuth: 0, polar: 0 };
@@ -257,6 +257,27 @@ export class InputManager {
    */
   onCubeClick(callback: (cube: Cube) => void) {
     this.onCubeClickCallback = callback;
+  }
+
+  /**
+   * 获取当前视角下的屏幕列映射
+   * 0永远代表当前屏幕最左列
+   */
+  getScreenColumnMapping(): { axis: 'x' | 'z', order: [number, number, number] } {
+    const normalizedAzimuth = ((this.azimuthAngle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+    const quadrant = Math.round(normalizedAzimuth / (Math.PI / 2)) % 4;
+
+    switch (quadrant) {
+      case 0:
+        return { axis: 'x', order: [0, 1, 2] };
+      case 1:
+        return { axis: 'z', order: [2, 1, 0] };
+      case 2:
+        return { axis: 'x', order: [2, 1, 0] };
+      case 3:
+      default:
+        return { axis: 'z', order: [0, 1, 2] };
+    }
   }
 
   /**

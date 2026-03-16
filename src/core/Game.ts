@@ -273,12 +273,20 @@ export class Game {
   private async mergeCubes(cube1: Cube, cube2: Cube) {
     console.log('✨ 合成中...');
 
+    const targetX = cube2.gridX;
+    const targetY = cube2.gridY;
+    const targetZ = cube2.gridZ;
+
     // 移除cube2
-    this.grid.setCube(cube2.gridX, cube2.gridY, cube2.gridZ, null);
+    this.grid.setCube(targetX, targetY, targetZ, null);
     await cube2.destroy();
     this.sceneManager.remove(cube2.mesh);
 
-    // cube1升级
+    // cube1移动到后点选的目标位置，再升级
+    this.grid.setCube(cube1.gridX, cube1.gridY, cube1.gridZ, null);
+    await cube1.moveTo(targetX, targetY, targetZ);
+    this.grid.setCube(targetX, targetY, targetZ, cube1);
+
     cube1.levelUp();
     this.deselectCube();
 
@@ -484,10 +492,34 @@ export class Game {
   }
 
   /**
+   * 只重置切面显示，不重置相机
+   */
+  resetSliceView() {
+    this.sliceSystem.resetView();
+  }
+
+  /**
    * 切换切面视图
    */
   showSlice(axis: 'x' | 'y' | 'z', index: number) {
     this.sliceSystem.showSlice(axis, index);
+  }
+
+  /**
+   * 从上到下显示Y层，0表示最上层
+   */
+  showLayerFromTop(index: number) {
+    const actualIndex = CONFIG.GRID_SIZE - 1 - index;
+    this.sliceSystem.showSlice('y', actualIndex);
+  }
+
+  /**
+   * 根据当前屏幕朝向选择列
+   */
+  showScreenColumn(index: number) {
+    const mapping = this.inputManager.getScreenColumnMapping();
+    const actualIndex = mapping.order[index];
+    this.sliceSystem.showSlice(mapping.axis, actualIndex);
   }
 
   /**
@@ -505,6 +537,7 @@ export class Game {
     if (!this.isRunning) return;
 
     this.inputManager.update();
+    this.grid.getAllCubes().forEach((cube) => cube.updateLevelLabelVisibility(this.sceneManager.camera));
     
     // 检查Combo超时
     if (this.comboCount > 0 && Date.now() - this.lastActionTime > CONFIG.COMBO_TIMEOUT) {

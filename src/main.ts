@@ -48,7 +48,7 @@ class App {
    * 设置切面按钮
    */
   private setupSliceButtons() {
-    const axes = ['x', 'y', 'z'] as const;
+    const axes = ['x', 'y'] as const;
     
     axes.forEach(axis => {
       const buttons = document.querySelectorAll(`[data-axis="${axis}"]`);
@@ -64,11 +64,15 @@ class App {
           
           // 显示切面
           if (index === -1) {
-            // ALL按钮：重置视图
-            this.game.resetView();
+            this.game.resetSliceView();
           } else {
-            // 显示指定切面
-            this.game.showSlice(axis, index);
+            if (axis === 'x') {
+              this.game.showScreenColumn(index);
+            } else if (axis === 'y') {
+              this.game.showLayerFromTop(index);
+            } else {
+              this.game.showSlice(axis, index);
+            }
           }
         });
       });
