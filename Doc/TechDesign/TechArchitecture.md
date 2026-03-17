@@ -342,6 +342,16 @@ class LeaderboardManager {
 }
 ```
 
+### 7.3 Web部署与 Vercel 规范
+- **部署平台**: Vercel（用于Web预览、联调与外部演示）
+- **模块制式**: 项目 `package.json` 使用 `"type": "module"`，避免 Vite CJS Node API 弃用警告。
+- **构建命令**: `npm run build`
+- **输出目录**: `dist`
+- **Node版本**: `>=18`
+- **SPA 路由兜底**: 通过 `vercel.json` 将所有路径重写到 `index.html`，避免刷新深链接时返回 404。
+
+> 注意：Vercel 仅作为常规Web部署环境。CrazyGames 平台相关能力（广告、排行榜、平台事件）仍需在 CrazyGames 实际环境单独验收。
+
 ---
 
 ## 8. 性能优化策略
