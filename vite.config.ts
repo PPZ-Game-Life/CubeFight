@@ -6,7 +6,6 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
-    minify: 'terser',
     target: 'es2020',
     rollupOptions: {
       output: {
