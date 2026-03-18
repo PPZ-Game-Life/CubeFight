@@ -167,43 +167,7 @@
   </style>
 </head>
 <body>
-  <div id="app">
-    <div id="ui-overlay">
-      <div id="score">Score: 0 | Coins: 0</div>
-      <div id="info">
-        <div>🎮 CubeFight</div>
-        <div style="font-size: 12px; margin-top: 5px;">无尽模式</div>
-      </div>
-      
-      <!-- 切面控制 -->
-      <div id="slice-controls">
-        <div class="slice-group">
-          <div class="slice-label">层 (Y)</div>
-          <div class="slice-buttons vertical" id="slice-y-buttons">
-            <button class="slice-btn" data-axis="y" data-index="0">0</button>
-            <button class="slice-btn" data-axis="y" data-index="1">1</button>
-            <button class="slice-btn" data-axis="y" data-index="2">2</button>
-            <button class="slice-btn active" data-axis="y" data-index="-1">ALL</button>
-          </div>
-        </div>
-      </div>
-      
-      <div id="controls">
-        <div id="bottom-slice-controls">
-          <div class="slice-label">列</div>
-          <div class="slice-buttons horizontal" id="slice-x-buttons">
-            <button class="slice-btn" data-axis="x" data-index="0">0</button>
-            <button class="slice-btn" data-axis="x" data-index="1">1</button>
-            <button class="slice-btn" data-axis="x" data-index="2">2</button>
-            <button class="slice-btn active" data-axis="x" data-index="-1">ALL</button>
-          </div>
-        </div>
-        <div class="control-row">
-          <button class="btn" id="btn-reset">重置视角</button>
-        </div>
-      </div>
-    </div>
-  </div>
-  <script type="module" src="/src/main.ts"></script>
+  <div id="app"></div>
+  <script type="module" src="/src/main.tsx"></script>
 </body>
 </html>

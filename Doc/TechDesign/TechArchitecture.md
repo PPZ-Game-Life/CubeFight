@@ -6,18 +6,22 @@
 
 ---
 
-## 1. 3D 引擎选型：Three.js (最终方案)
+## 1. 3D 引擎选型：React Three Fiber + Three.js (迁移中最终方案)
 
-**核心优势:**
-1. **极速上手**: 纯代码驱动,无需云端Editor,1小时可跑通Demo
-2. **包体极小**: 核心库仅 80KB (gzip),首屏加载 <1秒
-3. **调试友好**: 纯JS代码,Chrome DevTools直接断点调试,无黑盒
-4. **生态成熟**: CrazyGames平台大量Three.js游戏案例,兼容性有保障
-5. **性能充足**: 对于3x3x3 (27个Cube) 的场景,轻松跑满60FPS
+**迁移原因:**
+1. **表现层组件化**: 3D节点、HUD、切面UI、本地化统一进入 React 组件树
+2. **美术扩展性更强**: 更适合后续皮肤、后处理、材质效果、Composer Suite 管线扩展
+3. **状态流更清晰**: 玩法 state 与渲染层解耦，避免 Three.js imperative 逻辑继续膨胀
+4. **移动端适配更自然**: 竖屏 UI 与触摸交互可直接走 React 响应式布局
+5. **生态成熟**: R3F + Drei + postprocessing 已是 H5 3D 表现层主流组合
 
 **技术栈:**
 ```
-- Three.js r160+ (3D渲染)
+- React 18
+- React Three Fiber
+- Drei
+- Composer Suite / postprocessing
+- Three.js r160+
 - Vite 5.x (构建工具,HMR秒级热更新)
 - TypeScript (类型安全)
 - GSAP (动画库,用于合成/消失特效)
