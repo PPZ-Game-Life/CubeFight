@@ -15,6 +15,17 @@ import {
   assertPlayableDemoConfig,
   validatePlayableDemoConfig
 } from '../config/playableDemoValidation'
+import type { CubeData, SliceState } from '../model/types'
+import {
+  getComboScore,
+  getMatchResult,
+  getValidTargets,
+  getVisibleBombTargets,
+  getVisibleValidTargets,
+  isAdjacent,
+  resolveBoardAction,
+  resolveBomb
+} from './demoRules'
 
 const noMoveBoardWithRedFixture = buildNoMoveBoardWithRed()
 const topLayerSliceFixture = buildTopLayerSlice()
@@ -112,5 +123,173 @@ describe('playable demo fixtures', () => {
   it('provides stable fixtures for later rules tests', () => {
     expect(noMoveBoardWithRedFixture.some((cube) => cube.color === 'red')).toBe(true)
     expect(topLayerSliceFixture).toEqual({ axis: 'y', index: 2 })
+  })
+})
+
+function cube(overrides: Partial<CubeData> & Pick<CubeData, 'id' | 'color'>): CubeData {
+  return {
+    id: overrides.id,
+    color: overrides.color,
+    level: overrides.level ?? 1,
+    x: overrides.x ?? 0,
+    y: overrides.y ?? 0,
+    z: overrides.z ?? 0
+  }
+}
+
+function cloneCubes(cubes: CubeData[]): CubeData[] {
+  return cubes.map((item) => ({ ...item }))
+}
+
+describe('demo gameplay rules', () => {
+  const visibleTopSlice: SliceState = { axis: 'y', index: 1 }
+
+  it('treats only orthogonal neighbors as adjacent', () => {
+    const origin = cube({ id: 'origin', color: 'blue', x: 0, y: 0, z: 0 })
+
+    expect(isAdjacent(origin, cube({ id: 'x-neighbor', color: 'blue', x: 1, y: 0, z: 0 }))).toBe(true)
+    expect(isAdjacent(origin, cube({ id: 'y-neighbor', color: 'blue', x: 0, y: 1, z: 0 }))).toBe(true)
+    expect(isAdjacent(origin, cube({ id: 'z-neighbor', color: 'blue', x: 0, y: 0, z: 1 }))).toBe(true)
+    expect(isAdjacent(origin, cube({ id: 'diagonal', color: 'blue', x: 1, y: 1, z: 0 }))).toBe(false)
+    expect(isAdjacent(origin, cube({ id: 'same-cell', color: 'blue', x: 0, y: 0, z: 0 }))).toBe(false)
+  })
+
+  it('looks up only legal targets for a selected blue cube', () => {
+    const cubes = [
+      cube({ id: 'blue-source', color: 'blue', level: 2, x: 0, y: 0, z: 0 }),
+      cube({ id: 'merge-blue', color: 'blue', level: 2, x: 1, y: 0, z: 0 }),
+      cube({ id: 'red-food', color: 'red', level: 1, x: 0, y: 1, z: 0 }),
+      cube({ id: 'yellow-food', color: 'yellow', level: 2, x: 0, y: 0, z: 1 }),
+      cube({ id: 'too-strong-red', color: 'red', level: 3, x: 1, y: 1, z: 0 }),
+      cube({ id: 'diagonal-blue', color: 'blue', level: 2, x: 1, y: 1, z: 1 })
+    ]
+
+    expect(getValidTargets(cubes, 'blue-source')).toEqual(['merge-blue', 'red-food', 'yellow-food'])
+  })
+
+  it('filters visible legal targets by the active slice', () => {
+    const cubes = [
+      cube({ id: 'blue-source', color: 'blue', level: 2, x: 0, y: 1, z: 0 }),
+      cube({ id: 'visible-target', color: 'red', level: 1, x: 1, y: 1, z: 0 }),
+      cube({ id: 'hidden-target', color: 'yellow', level: 1, x: 0, y: 0, z: 0 })
+    ]
+
+    expect(getVisibleValidTargets(cubes, 'blue-source', visibleTopSlice)).toEqual(['visible-target'])
+  })
+
+  it('filters visible bomb targets by the active slice', () => {
+    const cubes = [
+      cube({ id: 'visible-a', color: 'red', x: 0, y: 1, z: 0 }),
+      cube({ id: 'visible-b', color: 'yellow', x: 1, y: 1, z: 0 }),
+      cube({ id: 'hidden', color: 'blue', x: 0, y: 0, z: 0 })
+    ]
+
+    expect(getVisibleBombTargets(cubes, visibleTopSlice)).toEqual(['visible-a', 'visible-b'])
+  })
+
+  it('merges same-level adjacent blue cubes into the second-click position', () => {
+    const rulesConfig = buildPlayableDemoConfig()
+    const cubes = [
+      cube({ id: 'blue-a', color: 'blue', level: 1, x: 0, y: 0, z: 0 }),
+      cube({ id: 'blue-b', color: 'blue', level: 1, x: 1, y: 0, z: 0 }),
+      cube({ id: 'red-keep', color: 'red', level: 1, x: 2, y: 0, z: 0 })
+    ]
+
+    const result = resolveBoardAction(cloneCubes(cubes), { type: 'target', sourceId: 'blue-a', targetId: 'blue-b' }, rulesConfig)
+
+    expect(result.kind).toBe('merge')
+    expect(result.cubes).toEqual([
+      cube({ id: 'blue-a', color: 'blue', level: 2, x: 1, y: 0, z: 0 }),
+      cube({ id: 'red-keep', color: 'red', level: 1, x: 2, y: 0, z: 0 })
+    ])
+    expect(result.baseScore).toBe(rulesConfig.scoring.mergeBase[2])
+  })
+
+  it('lets blue devour a legal red target', () => {
+    const rulesConfig = buildPlayableDemoConfig()
+    const cubes = [
+      cube({ id: 'blue-source', color: 'blue', level: 2, x: 0, y: 0, z: 0 }),
+      cube({ id: 'red-target', color: 'red', level: 1, x: 1, y: 0, z: 0 })
+    ]
+
+    const result = resolveBoardAction(cloneCubes(cubes), { type: 'target', sourceId: 'blue-source', targetId: 'red-target' }, rulesConfig)
+
+    expect(result.kind).toBe('devour_red')
+    expect(result.cubes).toEqual([
+      cube({ id: 'blue-source', color: 'blue', level: 2, x: 1, y: 0, z: 0 })
+    ])
+    expect(result.baseScore).toBe(rulesConfig.scoring.devourRedBase[1])
+  })
+
+  it('lets blue devour a legal yellow target', () => {
+    const rulesConfig = buildPlayableDemoConfig()
+    const cubes = [
+      cube({ id: 'blue-source', color: 'blue', level: 2, x: 0, y: 0, z: 0 }),
+      cube({ id: 'yellow-target', color: 'yellow', level: 2, x: 0, y: 0, z: 1 })
+    ]
+
+    const result = resolveBoardAction(cloneCubes(cubes), { type: 'target', sourceId: 'blue-source', targetId: 'yellow-target' }, rulesConfig)
+
+    expect(result.kind).toBe('devour_yellow')
+    expect(result.cubes).toEqual([
+      cube({ id: 'blue-source', color: 'blue', level: 2, x: 0, y: 0, z: 1 })
+    ])
+    expect(result.baseScore).toBe(rulesConfig.scoring.devourYellowBase[2])
+  })
+
+  it('rejects an invalid non-adjacent target without mutating the board', () => {
+    const rulesConfig = buildPlayableDemoConfig()
+    const cubes = [
+      cube({ id: 'blue-source', color: 'blue', level: 1, x: 0, y: 0, z: 0 }),
+      cube({ id: 'far-blue', color: 'blue', level: 1, x: 2, y: 0, z: 0 })
+    ]
+
+    const result = resolveBoardAction(cloneCubes(cubes), { type: 'target', sourceId: 'blue-source', targetId: 'far-blue' }, rulesConfig)
+
+    expect(result.kind).toBe('invalid')
+    if (result.kind !== 'invalid') {
+      throw new Error(`Expected invalid result, received ${result.kind}`)
+    }
+    expect(result.reason).toBe('invalid_target')
+    expect(result.cubes).toEqual(cubes)
+  })
+
+  it('removes exactly one targeted cube when a bomb resolves', () => {
+    const cubes = [
+      cube({ id: 'bomb-target', color: 'red', x: 0, y: 0, z: 0 }),
+      cube({ id: 'survivor-a', color: 'blue', x: 1, y: 0, z: 0 }),
+      cube({ id: 'survivor-b', color: 'yellow', x: 0, y: 1, z: 0 })
+    ]
+
+    const result = resolveBomb(cloneCubes(cubes), 'bomb-target')
+
+    expect(result.kind).toBe('bomb')
+    expect(result.cubes).toEqual([
+      cube({ id: 'survivor-a', color: 'blue', x: 1, y: 0, z: 0 }),
+      cube({ id: 'survivor-b', color: 'yellow', x: 0, y: 1, z: 0 })
+    ])
+  })
+
+  it('returns victory when all red cubes are gone', () => {
+    const cubes = [
+      cube({ id: 'blue', color: 'blue', x: 0, y: 0, z: 0 }),
+      cube({ id: 'yellow', color: 'yellow', x: 1, y: 0, z: 0 })
+    ]
+
+    expect(getMatchResult(cubes, 0)).toEqual({ kind: 'victory' })
+  })
+
+  it('returns game over when red remains, no legal blue move exists, and bombs are depleted', () => {
+    expect(getMatchResult(noMoveBoardWithRedFixture, 0)).toEqual({ kind: 'game_over' })
+  })
+
+  it('keeps the match in progress when red remains but a bomb is still available', () => {
+    expect(getMatchResult(noMoveBoardWithRedFixture, 1)).toEqual({ kind: 'in_progress' })
+  })
+
+  it('applies combo multipliers from the authored table and clamps at the last entry', () => {
+    expect(getComboScore(10, 1, [1, 1.5, 2])).toBe(10)
+    expect(getComboScore(10, 2, [1, 1.5, 2])).toBe(15)
+    expect(getComboScore(10, 5, [1, 1.5, 2])).toBe(20)
   })
 })
