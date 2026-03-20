@@ -48,7 +48,7 @@ export type ResolveBoardActionResult =
 
 export interface InvalidBombResult {
   kind: 'invalid'
-  reason: 'missing_target'
+  reason: 'missing_target' | 'invalid_target'
   cubes: CubeData[]
 }
 
@@ -199,8 +199,14 @@ export function resolveBoardAction(
 }
 
 export function resolveBomb(cubes: CubeData[], targetId: string): ResolveBombResult {
-  if (!findCube(cubes, targetId)) {
+  const target = findCube(cubes, targetId)
+
+  if (!target) {
     return { kind: 'invalid', reason: 'missing_target', cubes: cloneCubes(cubes) }
+  }
+
+  if (target.color === 'blue') {
+    return { kind: 'invalid', reason: 'invalid_target', cubes: cloneCubes(cubes) }
   }
 
   return {

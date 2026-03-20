@@ -288,6 +288,22 @@ describe('demo gameplay rules', () => {
     ])
   })
 
+  it('rejects bombing a blue cube', () => {
+    const cubes = [
+      cube({ id: 'blue-target', color: 'blue', x: 0, y: 0, z: 0 }),
+      cube({ id: 'red-survivor', color: 'red', x: 1, y: 0, z: 0 })
+    ]
+
+    const result = resolveBomb(cloneCubes(cubes), 'blue-target')
+
+    expect(result.kind).toBe('invalid')
+    if (result.kind !== 'invalid') {
+      throw new Error(`Expected invalid result, received ${result.kind}`)
+    }
+    expect(result.reason).toBe('invalid_target')
+    expect(result.cubes).toEqual(cubes)
+  })
+
   it('returns victory when all red cubes are gone', () => {
     const cubes = [
       cube({ id: 'blue', color: 'blue', x: 0, y: 0, z: 0 }),
