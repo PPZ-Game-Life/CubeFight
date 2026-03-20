@@ -1,15 +1,20 @@
 import type { CubeData, PlayableDemoConfig, SliceState } from '../model/types'
-import { isCubeVisible } from './selectors'
 
-export interface TargetBoardAction {
-  type: 'target'
+export interface MergeBoardAction {
+  type: 'merge'
   sourceId: string
   targetId: string
 }
 
-export type DemoBoardAction = TargetBoardAction
+export interface DevourBoardAction {
+  type: 'devour'
+  sourceId: string
+  targetId: string
+}
 
-export type DemoBoardActionFailureReason = 'missing_source' | 'missing_target' | 'invalid_target'
+export type DemoBoardAction = MergeBoardAction | DevourBoardAction
+
+export type DemoBoardActionFailureReason = 'missing_source' | 'missing_target' | 'unsupported_source' | 'invalid_target'
 
 export interface InvalidBoardActionResult {
   kind: 'invalid'
@@ -72,17 +77,33 @@ function findCube(cubes: CubeData[], cubeId: string): CubeData | undefined {
   return cubes.find((cube) => cube.id === cubeId)
 }
 
-function canPerformAction(source: CubeData, target: CubeData): boolean {
-  if (source.color === 'blue') {
-    if (target.color === 'blue' && source.level === target.level) return true
-    if ((target.color === 'red' || target.color === 'yellow') && source.level >= target.level) return true
-  }
-
-  if (source.color === 'yellow' && target.color === 'yellow' && source.level === target.level) {
+function isVisibleInSlice(cube: CubeData, slice: SliceState): boolean {
+  if (!slice.axis || slice.index < 0) {
     return true
   }
 
-  return false
+  return cube[slice.axis] === slice.index
+}
+
+function canResolveAction(source: CubeData, target: CubeData, action: DemoBoardAction): boolean {
+  if (source.color !== 'blue') {
+    return false
+  }
+
+  if (action.type === 'merge') {
+    return target.color === 'blue' && source.level === target.level
+  }
+
+  return (target.color === 'red' || target.color === 'yellow') && source.level >= target.level
+}
+
+function canTargetFromBlue(source: CubeData, target: CubeData): boolean {
+  if (source.color !== 'blue') {
+    return false
+  }
+
+  return (target.color === 'blue' && source.level === target.level)
+    || ((target.color === 'red' || target.color === 'yellow') && source.level >= target.level)
 }
 
 function hasLegalBlueMove(cubes: CubeData[]): boolean {
@@ -105,19 +126,21 @@ export function getValidTargets(cubes: CubeData[], sourceId: string): string[] {
   }
 
   return cubes
-    .filter((target) => target.id !== source.id && isAdjacent(source, target) && canPerformAction(source, target))
+    .filter((target) => target.id !== source.id && isAdjacent(source, target) && canTargetFromBlue(source, target))
     .map((target) => target.id)
 }
 
 export function getVisibleValidTargets(cubes: CubeData[], sourceId: string, slice: SliceState): string[] {
   return getValidTargets(cubes, sourceId).filter((targetId) => {
     const target = findCube(cubes, targetId)
-    return target ? isCubeVisible(target, slice) : false
+    return target ? isVisibleInSlice(target, slice) : false
   })
 }
 
 export function getVisibleBombTargets(cubes: CubeData[], slice: SliceState): string[] {
-  return cubes.filter((cube) => isCubeVisible(cube, slice)).map((cube) => cube.id)
+  return cubes
+    .filter((cube) => (cube.color === 'red' || cube.color === 'yellow') && isVisibleInSlice(cube, slice))
+    .map((cube) => cube.id)
 }
 
 export function resolveBoardAction(
@@ -135,11 +158,15 @@ export function resolveBoardAction(
     return { kind: 'invalid', reason: 'missing_target', cubes: cloneCubes(cubes), baseScore: 0 }
   }
 
-  if (!isAdjacent(source, target) || !canPerformAction(source, target)) {
+  if (source.color !== 'blue') {
+    return { kind: 'invalid', reason: 'unsupported_source', cubes: cloneCubes(cubes), baseScore: 0 }
+  }
+
+  if (!isAdjacent(source, target) || !canResolveAction(source, target, action)) {
     return { kind: 'invalid', reason: 'invalid_target', cubes: cloneCubes(cubes), baseScore: 0 }
   }
 
-  if (source.color === target.color && source.level === target.level) {
+  if (action.type === 'merge') {
     const nextLevel = source.level + 1
     const mergedCubes = cubes
       .filter((cube) => cube.id !== target.id)

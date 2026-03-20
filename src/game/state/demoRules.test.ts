@@ -181,6 +181,7 @@ describe('demo gameplay rules', () => {
     const cubes = [
       cube({ id: 'visible-a', color: 'red', x: 0, y: 1, z: 0 }),
       cube({ id: 'visible-b', color: 'yellow', x: 1, y: 1, z: 0 }),
+      cube({ id: 'visible-blue', color: 'blue', x: 2, y: 1, z: 0 }),
       cube({ id: 'hidden', color: 'blue', x: 0, y: 0, z: 0 })
     ]
 
@@ -195,7 +196,7 @@ describe('demo gameplay rules', () => {
       cube({ id: 'red-keep', color: 'red', level: 1, x: 2, y: 0, z: 0 })
     ]
 
-    const result = resolveBoardAction(cloneCubes(cubes), { type: 'target', sourceId: 'blue-a', targetId: 'blue-b' }, rulesConfig)
+    const result = resolveBoardAction(cloneCubes(cubes), { type: 'merge', sourceId: 'blue-a', targetId: 'blue-b' }, rulesConfig)
 
     expect(result.kind).toBe('merge')
     expect(result.cubes).toEqual([
@@ -212,7 +213,7 @@ describe('demo gameplay rules', () => {
       cube({ id: 'red-target', color: 'red', level: 1, x: 1, y: 0, z: 0 })
     ]
 
-    const result = resolveBoardAction(cloneCubes(cubes), { type: 'target', sourceId: 'blue-source', targetId: 'red-target' }, rulesConfig)
+    const result = resolveBoardAction(cloneCubes(cubes), { type: 'devour', sourceId: 'blue-source', targetId: 'red-target' }, rulesConfig)
 
     expect(result.kind).toBe('devour_red')
     expect(result.cubes).toEqual([
@@ -228,7 +229,7 @@ describe('demo gameplay rules', () => {
       cube({ id: 'yellow-target', color: 'yellow', level: 2, x: 0, y: 0, z: 1 })
     ]
 
-    const result = resolveBoardAction(cloneCubes(cubes), { type: 'target', sourceId: 'blue-source', targetId: 'yellow-target' }, rulesConfig)
+    const result = resolveBoardAction(cloneCubes(cubes), { type: 'devour', sourceId: 'blue-source', targetId: 'yellow-target' }, rulesConfig)
 
     expect(result.kind).toBe('devour_yellow')
     expect(result.cubes).toEqual([
@@ -244,13 +245,30 @@ describe('demo gameplay rules', () => {
       cube({ id: 'far-blue', color: 'blue', level: 1, x: 2, y: 0, z: 0 })
     ]
 
-    const result = resolveBoardAction(cloneCubes(cubes), { type: 'target', sourceId: 'blue-source', targetId: 'far-blue' }, rulesConfig)
+    const result = resolveBoardAction(cloneCubes(cubes), { type: 'merge', sourceId: 'blue-source', targetId: 'far-blue' }, rulesConfig)
 
     expect(result.kind).toBe('invalid')
     if (result.kind !== 'invalid') {
       throw new Error(`Expected invalid result, received ${result.kind}`)
     }
     expect(result.reason).toBe('invalid_target')
+    expect(result.cubes).toEqual(cubes)
+  })
+
+  it('rejects non-blue source actions clearly', () => {
+    const rulesConfig = buildPlayableDemoConfig()
+    const cubes = [
+      cube({ id: 'yellow-source', color: 'yellow', level: 1, x: 0, y: 0, z: 0 }),
+      cube({ id: 'yellow-target', color: 'yellow', level: 1, x: 1, y: 0, z: 0 })
+    ]
+
+    const result = resolveBoardAction(cloneCubes(cubes), { type: 'merge', sourceId: 'yellow-source', targetId: 'yellow-target' }, rulesConfig)
+
+    expect(result.kind).toBe('invalid')
+    if (result.kind !== 'invalid') {
+      throw new Error(`Expected invalid result, received ${result.kind}`)
+    }
+    expect(result.reason).toBe('unsupported_source')
     expect(result.cubes).toEqual(cubes)
   })
 
