@@ -47,7 +47,8 @@ const PLAYABLE_DEMO_CONFIG_TEMPLATE: PlayableDemoConfig = {
   scoring: {
     mergeBase: {
       2: 30,
-      3: 80
+      3: 80,
+      4: 200
     },
     devourRedBase: {
       1: 10,

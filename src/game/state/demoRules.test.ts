@@ -76,6 +76,15 @@ describe('playable demo config validation', () => {
     expect(getErrorMessages(config)).toContainEqual(expect.stringMatching(/missing merge score coverage.*level 2/i))
   })
 
+  it('rejects missing merge score coverage for chained reachable merge-result levels', () => {
+    const config = buildPlayableDemoConfig()
+    const mergeBase = config.scoring.mergeBase as Partial<Record<number, number>>
+
+    delete mergeBase[3]
+
+    expect(getErrorMessages(config)).toContainEqual(expect.stringMatching(/missing merge score coverage.*level 3/i))
+  })
+
   it('rejects a config with missing mergeBase', () => {
     const config = buildPlayableDemoConfig() as PlayableDemoConfig
 
@@ -86,6 +95,16 @@ describe('playable demo config validation', () => {
 
   it('assertPlayableDemoConfig throws PlayableDemoConfigError for invalid config', () => {
     expect(() => assertPlayableDemoConfig(buildDuplicateIdConfig())).toThrow(PlayableDemoConfigError)
+  })
+
+  it('rejects malformed cube objects explicitly', () => {
+    const config = buildPlayableDemoConfig() as unknown as {
+      board: { cubes: unknown[] }
+    }
+
+    config.board.cubes[0] = { id: 'broken-cube', level: 1, x: 0, y: 0, z: 0 }
+
+    expect(getErrorMessages(config)).toContainEqual(expect.stringMatching(/invalid cube.*index 0/i))
   })
 })
 

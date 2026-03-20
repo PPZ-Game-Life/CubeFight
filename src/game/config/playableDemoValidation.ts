@@ -27,36 +27,35 @@ function isCubeData(value: unknown): value is CubeData {
     && typeof value.z === 'number'
 }
 
-function isOrthogonallyAdjacent(a: CubeData, b: CubeData) {
-  const dx = Math.abs(a.x - b.x)
-  const dy = Math.abs(a.y - b.y)
-  const dz = Math.abs(a.z - b.z)
-
-  return (dx === 1 && dy === 0 && dz === 0)
-    || (dx === 0 && dy === 1 && dz === 0)
-    || (dx === 0 && dy === 0 && dz === 1)
-}
-
 function collectCubeLevels(cubes: CubeData[], color: CubeData['color']): number[] {
   return [...new Set(cubes.filter((cube) => cube.color === color).map((cube) => cube.level))].sort((a, b) => a - b)
 }
 
 function collectMergeResultLevels(cubes: CubeData[]): number[] {
+  const blueLevelCounts = new Map<number, number>()
   const levels = new Set<number>()
 
-  for (let index = 0; index < cubes.length; index += 1) {
-    const source = cubes[index]
+  for (const cube of cubes) {
+    if (cube.color !== 'blue') continue
+    blueLevelCounts.set(cube.level, (blueLevelCounts.get(cube.level) ?? 0) + 1)
+  }
 
-    if (source.color !== 'blue') continue
+  const orderedLevels = [...blueLevelCounts.keys()].sort((a, b) => a - b)
 
-    for (let nextIndex = index + 1; nextIndex < cubes.length; nextIndex += 1) {
-      const target = cubes[nextIndex]
+  for (let index = 0; index < orderedLevels.length; index += 1) {
+    const level = orderedLevels[index]
+    const count = blueLevelCounts.get(level) ?? 0
+    const pairs = Math.floor(count / 2)
 
-      if (target.color !== 'blue') continue
-      if (source.level !== target.level) continue
-      if (!isOrthogonallyAdjacent(source, target)) continue
+    if (pairs <= 0) continue
 
-      levels.add(source.level + 1)
+    const nextLevel = level + 1
+    levels.add(nextLevel)
+    blueLevelCounts.set(nextLevel, (blueLevelCounts.get(nextLevel) ?? 0) + pairs)
+
+    if (!orderedLevels.includes(nextLevel)) {
+      orderedLevels.push(nextLevel)
+      orderedLevels.sort((a, b) => a - b)
     }
   }
 
@@ -81,7 +80,7 @@ export function validatePlayableDemoConfig(config: unknown): PlayableDemoConfigE
   const ui = isRecord(config.ui) ? config.ui : null
 
   const gridSize = typeof board?.gridSize === 'number' ? board.gridSize : null
-  const cubes = Array.isArray(board?.cubes) ? board.cubes.filter(isCubeData) : []
+  const cubes: CubeData[] = []
 
   if (gridSize === null) {
     errors.push(new PlayableDemoConfigError('Playable demo config requires board.gridSize.'))
@@ -89,6 +88,15 @@ export function validatePlayableDemoConfig(config: unknown): PlayableDemoConfigE
 
   if (!Array.isArray(board?.cubes)) {
     errors.push(new PlayableDemoConfigError('Playable demo config requires board.cubes.'))
+  } else {
+    for (const [index, cube] of board.cubes.entries()) {
+      if (!isCubeData(cube)) {
+        errors.push(new PlayableDemoConfigError(`Invalid cube at index ${index}.`))
+        continue
+      }
+
+      cubes.push(cube)
+    }
   }
 
   if (!Array.isArray(combo?.multiplierTable) || combo.multiplierTable.length === 0) {
