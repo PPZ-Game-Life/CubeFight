@@ -1,4 +1,6 @@
-import type { CubeColor, CubeData } from '../model/types'
+import type { CubeColor, CubeData, PlayableDemoConfig } from '../model/types'
+import { buildPlayableDemoConfig } from './playableDemo'
+import { assertPlayableDemoConfig } from './playableDemoValidation'
 
 export const GRID_SIZE = 3
 export const CUBE_SIZE = 1
@@ -15,32 +17,13 @@ export const CUBE_COLORS: Record<CubeColor, string> = {
   yellow: '#fbbf24'
 }
 
-export const INITIAL_CUBES: CubeData[] = [
-  { id: 'c000', color: 'blue', level: 1, x: 0, y: 0, z: 0 },
-  { id: 'c001', color: 'blue', level: 1, x: 1, y: 0, z: 0 },
-  { id: 'c002', color: 'yellow', level: 1, x: 2, y: 0, z: 0 },
-  { id: 'c003', color: 'blue', level: 1, x: 0, y: 0, z: 1 },
-  { id: 'c004', color: 'red', level: 1, x: 1, y: 0, z: 1 },
-  { id: 'c005', color: 'yellow', level: 1, x: 2, y: 0, z: 1 },
-  { id: 'c006', color: 'yellow', level: 1, x: 0, y: 0, z: 2 },
-  { id: 'c007', color: 'blue', level: 1, x: 1, y: 0, z: 2 },
-  { id: 'c008', color: 'red', level: 1, x: 2, y: 0, z: 2 },
-  { id: 'c009', color: 'blue', level: 2, x: 0, y: 1, z: 0 },
-  { id: 'c010', color: 'yellow', level: 1, x: 1, y: 1, z: 0 },
-  { id: 'c011', color: 'blue', level: 1, x: 2, y: 1, z: 0 },
-  { id: 'c012', color: 'red', level: 1, x: 0, y: 1, z: 1 },
-  { id: 'c013', color: 'yellow', level: 1, x: 1, y: 1, z: 1 },
-  { id: 'c014', color: 'yellow', level: 2, x: 2, y: 1, z: 1 },
-  { id: 'c015', color: 'blue', level: 1, x: 0, y: 1, z: 2 },
-  { id: 'c016', color: 'red', level: 1, x: 1, y: 1, z: 2 },
-  { id: 'c017', color: 'blue', level: 1, x: 2, y: 1, z: 2 },
-  { id: 'c018', color: 'yellow', level: 1, x: 0, y: 2, z: 0 },
-  { id: 'c019', color: 'blue', level: 1, x: 1, y: 2, z: 0 },
-  { id: 'c020', color: 'red', level: 1, x: 2, y: 2, z: 0 },
-  { id: 'c021', color: 'red', level: 1, x: 0, y: 2, z: 1 },
-  { id: 'c022', color: 'blue', level: 1, x: 1, y: 2, z: 1 },
-  { id: 'c023', color: 'yellow', level: 1, x: 2, y: 2, z: 1 },
-  { id: 'c024', color: 'blue', level: 1, x: 0, y: 2, z: 2 },
-  { id: 'c025', color: 'blue', level: 1, x: 1, y: 2, z: 2 },
-  { id: 'c026', color: 'red', level: 1, x: 2, y: 2, z: 2 }
-]
+export function getValidatedPlayableDemoConfig(config: unknown = buildPlayableDemoConfig()): PlayableDemoConfig {
+  assertPlayableDemoConfig(config)
+  return config
+}
+
+export function getInitialCubes(config: unknown = buildPlayableDemoConfig()): CubeData[] {
+  return getValidatedPlayableDemoConfig(config).board.cubes.map((cube) => ({ ...cube }))
+}
+
+export { buildPlayableDemoConfig }

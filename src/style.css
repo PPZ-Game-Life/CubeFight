@@ -1,1 +1,143 @@
-/* 全局样式重置已在 index.html 中定义 */
+.slice-controls {
+  position: absolute;
+  top: 50%;
+  right: 16px;
+  z-index: 10;
+  display: grid;
+  gap: 12px;
+  width: min(248px, calc(100vw - 32px));
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.slice-controls__panel,
+.slice-controls__actions {
+  pointer-events: auto;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(18, 31, 50, 0.88), rgba(9, 18, 32, 0.84)),
+    rgba(10, 18, 31, 0.8);
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(14px);
+}
+
+.slice-controls__panel {
+  padding: 14px;
+}
+
+.slice-controls__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.slice-controls__label {
+  margin: 0;
+  color: #f5f7fb;
+  font: 700 0.72rem/1.1 "Trebuchet MS", "Segoe UI", sans-serif;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.slice-controls__meta {
+  color: rgba(235, 242, 255, 0.72);
+  font: 600 0.68rem/1 "Trebuchet MS", "Segoe UI", sans-serif;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.slice-controls__buttons {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.slice-controls__buttons--vertical {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.slice-controls__buttons--horizontal {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.slice-controls__button,
+.slice-controls__reset {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 12px;
+  color: #f5f7fb;
+  background: rgba(245, 247, 251, 0.08);
+  font: 700 0.85rem/1 "Trebuchet MS", "Segoe UI", sans-serif;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease, transform 140ms ease, box-shadow 140ms ease, opacity 140ms ease;
+}
+
+.slice-controls__button {
+  min-height: 42px;
+  padding: 0 10px;
+}
+
+.slice-controls__reset {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 16px;
+}
+
+.slice-controls__button:hover,
+.slice-controls__reset:hover {
+  background: rgba(245, 247, 251, 0.14);
+  border-color: rgba(255, 255, 255, 0.28);
+  transform: translateY(-1px);
+}
+
+.slice-controls__button:focus-visible,
+.slice-controls__reset:focus-visible {
+  outline: 2px solid rgba(153, 214, 255, 0.9);
+  outline-offset: 2px;
+}
+
+.slice-controls__button.is-active {
+  border-color: rgba(133, 201, 255, 0.78);
+  background: linear-gradient(180deg, rgba(101, 184, 255, 0.36), rgba(58, 130, 214, 0.28));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 0 0 1px rgba(71, 157, 229, 0.08);
+}
+
+.slice-controls.is-disabled {
+  filter: saturate(0.72);
+}
+
+.slice-controls.is-disabled .slice-controls__panel,
+.slice-controls.is-disabled .slice-controls__actions {
+  border-color: rgba(255, 255, 255, 0.1);
+  background:
+    linear-gradient(180deg, rgba(18, 31, 50, 0.72), rgba(9, 18, 32, 0.72)),
+    rgba(10, 18, 31, 0.68);
+}
+
+.slice-controls__button:disabled,
+.slice-controls__reset:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+@media (max-width: 900px) {
+  .slice-controls {
+    top: auto;
+    right: 16px;
+    bottom: 16px;
+    transform: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .slice-controls {
+    left: 16px;
+    right: 16px;
+    width: auto;
+  }
+}
