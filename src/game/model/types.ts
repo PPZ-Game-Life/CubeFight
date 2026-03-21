@@ -17,10 +17,10 @@ export type StatusHintKey =
   | 'choose_target'
   | 'choose_bomb_target'
   | 'use_bomb'
-  | 'paused'
+  | 'noBombs'
+  | 'chooseValidTarget'
+  | 'movesHiddenByView'
   | 'resolving'
-  | 'victory'
-  | 'game_over'
 
 export interface CubeData {
   id: string

@@ -23,6 +23,7 @@ import {
 } from './gameFlow'
 import {
   getComboScore,
+  getValidTargets,
   getVisibleBombTargets,
   getVisibleValidTargets,
   resolveBoardAction,
@@ -64,7 +65,7 @@ type GameStoreData = ComboState & {
   resumeTargetState: ResumeTargetState
   overlay: GameOverlay
   matchResult: MatchResult
-  statusHintKey: StatusHintKey
+  statusHintKey: StatusHintKey | null
   mergeAnimation: MergeAnimationState | null
   slice: SliceState
   controls: ControlState
@@ -88,7 +89,7 @@ export type GameStoreSnapshot = {
   resumeTargetState: ResumeTargetState
   bombCount: number
   overlay: GameOverlay
-  statusHintKey: StatusHintKey
+  statusHintKey: StatusHintKey | null
   matchResult: MatchResult
   validTargetIds: string[]
   bombTargetIds: string[]
@@ -105,7 +106,7 @@ export type GameStoreSnapshot = {
   restartDemo: () => void
   activateBomb: () => void
   cancelTargeting: () => void
-  getStatusHintKey: () => StatusHintKey
+  getStatusHintKey: () => StatusHintKey | null
   clickCube: (cubeId: string) => void
   clearSelection: () => void
 }
@@ -195,16 +196,33 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
     return { visibleCubes, validTargetIds, bombTargetIds }
   }
 
+  const hasHiddenLegalMoves = () => {
+    const visibleBlueIds = data.cubes.filter((cube) => cube.color === 'blue' && isCubeVisible(cube, data.slice)).map((cube) => cube.id)
+    const hasAnyLegalMove = data.cubes.some((cube) => cube.color === 'blue' && getValidTargets(data.cubes, cube.id).length > 0)
+    const hasVisibleLegalMove = visibleBlueIds.some((cubeId) => getVisibleValidTargets(data.cubes, cubeId, data.slice).length > 0)
+    return hasAnyLegalMove && !hasVisibleLegalMove
+  }
+
   const applyStatusHint = (overrideRunState = data.runState) => {
     const { validTargetIds, bombTargetIds } = getDerived()
     data.statusHintKey = deriveStatusHintKey({
       runState: overrideRunState,
+      overlay: data.overlay,
       bombCount: data.bombCount,
       selectedCubeId: data.selectedCubeId,
       validTargetIds,
       bombTargetIds,
-      matchResult: data.matchResult
+      matchResult: data.matchResult,
+      hasHiddenLegalMoves: hasHiddenLegalMoves()
     })
+  }
+
+  const clearComboState = () => {
+    clearComboTimer()
+    data.comboCount = 0
+    data.comboText = null
+    data.lastActionAt = null
+    data.comboExpiresAt = null
   }
 
   const syncInteractiveFlow = () => {
@@ -221,6 +239,11 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
     data.runState = nextFlow.runState
     data.overlay = nextFlow.overlay
     data.resumeTargetState = nextFlow.resumeTargetState
+
+    if (data.matchResult.kind === 'victory' || data.matchResult.kind === 'game_over') {
+      clearComboState()
+    }
+
     applyStatusHint()
   }
 
@@ -293,6 +316,8 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
   const commitBombTarget = (targetId: string) => {
     const result = resolveBomb(data.cubes, targetId)
     if (result.kind === 'invalid') {
+      applyStatusHint('targeting_bomb')
+      emit()
       return
     }
 
@@ -350,6 +375,8 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
     )
 
     if (result.kind === 'invalid') {
+      data.statusHintKey = 'chooseValidTarget'
+      emit()
       return
     }
 
@@ -425,7 +452,13 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
   }
 
   const activateBomb = () => {
-    if (data.bombCount <= 0 || data.runState === 'paused' || data.runState === 'resolving' || data.runState === 'victory' || data.runState === 'game_over') {
+    if (data.runState === 'paused' || data.runState === 'resolving' || data.runState === 'victory' || data.runState === 'game_over') {
+      return
+    }
+
+    if (data.bombCount <= 0) {
+      data.statusHintKey = 'noBombs'
+      emit()
       return
     }
 
@@ -459,9 +492,34 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
     emit()
   }
 
+  const syncSliceInteractionState = () => {
+    if (!data.selectedCubeId) {
+      if (data.runState === 'paused' && data.resumeTargetState === 'selected') {
+        data.resumeTargetState = 'idle'
+      }
+      return
+    }
+
+    const selectedCube = data.cubes.find((cube) => cube.id === data.selectedCubeId)
+    if (selectedCube && isCubeVisible(selectedCube, data.slice)) {
+      return
+    }
+
+    data.selectedCubeId = null
+
+    if (data.runState === 'selected') {
+      data.runState = 'idle'
+    }
+
+    if (data.runState === 'paused' && data.resumeTargetState === 'selected') {
+      data.resumeTargetState = 'idle'
+    }
+  }
+
   const showLayerFromTop = (index: number) => {
     data.controls = { ...data.controls, ySelection: index }
     data.slice = { axis: 'y', index: getActualTopDownLayerIndex(index) }
+    syncSliceInteractionState()
     applyStatusHint()
     emit()
   }
@@ -470,6 +528,7 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
     const mapping = getScreenColumnMapping(data.camera.yaw)
     data.controls = { ...data.controls, xSelection: index }
     data.slice = { axis: mapping.axis, index: mapping.order[index] }
+    syncSliceInteractionState()
     applyStatusHint()
     emit()
   }
@@ -477,6 +536,7 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
   const resetSliceView = () => {
     data.slice = { axis: null, index: -1 }
     data.controls = { xSelection: -1, ySelection: -1 }
+    syncSliceInteractionState()
     applyStatusHint()
     emit()
   }

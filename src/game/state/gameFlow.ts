@@ -32,22 +32,16 @@ function getComboText(comboCount: number): string {
 
 export function deriveStatusHintKey(snapshot: {
   runState: GameRunState
+  overlay: GameOverlay
   bombCount: number
   selectedCubeId: string | null
   validTargetIds: string[]
   bombTargetIds: string[]
   matchResult: MatchResult
-}): StatusHintKey {
-  if (snapshot.matchResult.kind === 'victory' || snapshot.runState === 'victory') {
-    return 'victory'
-  }
-
-  if (snapshot.matchResult.kind === 'game_over' || snapshot.runState === 'game_over') {
-    return 'game_over'
-  }
-
-  if (snapshot.runState === 'paused') {
-    return 'paused'
+  hasHiddenLegalMoves: boolean
+}): StatusHintKey | null {
+  if (snapshot.overlay !== 'none') {
+    return null
   }
 
   if (snapshot.runState === 'resolving') {
@@ -64,6 +58,10 @@ export function deriveStatusHintKey(snapshot: {
 
   if (snapshot.bombCount > 0 && snapshot.bombTargetIds.length > 0 && snapshot.selectedCubeId && snapshot.validTargetIds.length === 0) {
     return 'use_bomb'
+  }
+
+  if (snapshot.hasHiddenLegalMoves) {
+    return 'movesHiddenByView'
   }
 
   return 'select_blue_cube'
