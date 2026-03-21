@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useRef, useSyncExternalStore } from 'react'
 
-import { CUBE_GAP, CUBE_SIZE } from '../config/config'
-import { buildPlayableDemoConfig } from '../config/playableDemo'
+import { CUBE_GAP, CUBE_SIZE, getValidatedPlayableDemoConfig } from '../config/config'
 import type {
   ComboTextKey,
   CubeData,
@@ -182,7 +181,7 @@ function createInitialData(config: PlayableDemoConfig): GameStoreData {
 }
 
 export function createGameStore(options: CreateGameStoreOptions = {}): GameStore {
-  const config = cloneConfig(options.config ?? buildPlayableDemoConfig())
+  const config = cloneConfig(getValidatedPlayableDemoConfig(options.config))
   const now = options.now ?? (() => Date.now())
   const timers = options.timers ?? { setTimeout, clearTimeout }
   const listeners = new Set<() => void>()

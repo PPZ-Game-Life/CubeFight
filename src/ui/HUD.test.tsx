@@ -123,7 +123,7 @@ describe('HUD', () => {
     expect(screen.getByRole('dialog', { name: 'Game Over' })).toBeInTheDocument()
   })
 
-  it('disables the bomb action when inventory is empty and hides optional combo or pause controls from config', () => {
+  it('keeps the zero-bomb control visually disabled while surfacing the noBombs hint on click', () => {
     const config = buildConfig([
       cube({ id: 'blue-a', color: 'blue', x: 0, y: 0, z: 0 }),
       cube({ id: 'red-a', color: 'red', x: 1, y: 0, z: 0 }),
@@ -136,7 +136,13 @@ describe('HUD', () => {
 
     renderWithGameProviders({ store })
 
-    expect(screen.getByRole('button', { name: 'Bombs' })).toBeDisabled()
+    const bombButton = screen.getByRole('button', { name: 'Bombs' })
+
+    expect(bombButton).toHaveAttribute('aria-disabled', 'true')
+
+    fireEvent.click(bombButton)
+
+    expect(screen.getByText('No bombs left. Make a board move to continue.')).toBeInTheDocument()
     expect(screen.queryByText('Combo')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Pause' })).not.toBeInTheDocument()
   })

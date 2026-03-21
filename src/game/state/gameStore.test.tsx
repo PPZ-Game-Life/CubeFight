@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { buildNoMoveBoardWithRed, buildPlayableDemoConfig } from '../config/playableDemo'
+import { PlayableDemoConfigError } from '../config/playableDemoValidation'
 import type { CubeData, PlayableDemoConfig } from '../model/types'
 import { createGameStore } from './gameStore'
 
@@ -147,13 +148,14 @@ function createNoBombStore() {
 }
 
 function createInvalidTargetStore() {
-  const store = createGameStore({
-    config: createStoreConfig([
-      cube({ id: 'blue-a', color: 'blue', level: 2, x: 0, y: 0, z: 0 }),
-      cube({ id: 'blue-b', color: 'blue', level: 2, x: 1, y: 0, z: 0 }),
-      cube({ id: 'red-strong', color: 'red', level: 3, x: 0, y: 1, z: 0 })
-    ])
-  })
+  const config = createStoreConfig([
+    cube({ id: 'blue-a', color: 'blue', level: 2, x: 0, y: 0, z: 0 }),
+    cube({ id: 'blue-b', color: 'blue', level: 2, x: 1, y: 0, z: 0 }),
+    cube({ id: 'red-strong', color: 'red', level: 3, x: 0, y: 1, z: 0 })
+  ])
+  config.scoring.devourRedBase[3] = 999
+
+  const store = createGameStore({ config })
 
   store.getState().selectCube('blue-a')
 
@@ -212,7 +214,7 @@ describe('gameStore test helpers', () => {
     expect(store.getState().bombCount).toBe(1)
     expect(store.getState().overlay).toBe('none')
     expect(store.getState().matchResult).toEqual({ kind: 'in_progress' })
-    expect(store.getState().bombTargetIds).toEqual(['red-a', 'yellow-a'])
+    expect(store.getState().bombTargetIds).toEqual(['blue-a', 'blue-b', 'red-a', 'yellow-a'])
     expect(store.getState().statusHintKey).toBe('select_blue_cube')
   })
 
@@ -222,7 +224,7 @@ describe('gameStore test helpers', () => {
     expect(store.getState().runState).toBe('selected')
     expect(store.getState().selectedCubeId).toBe('blue-a')
     expect(store.getState().validTargetIds).toEqual([])
-    expect(store.getState().bombTargetIds).toEqual(['red-visible'])
+    expect(store.getState().bombTargetIds).toEqual(['blue-a', 'red-visible'])
   })
 
   it('createVictoryReadyStore reaches victory after one committed board action', () => {
@@ -242,7 +244,7 @@ describe('gameStore test helpers', () => {
     store.getState().showLayerFromTop(0)
 
     expect(store.getState().visibleCubes.map((item: CubeData) => item.id)).toEqual(['blue-a', 'red-top'])
-    expect(store.getState().bombTargetIds).toEqual(['red-top'])
+    expect(store.getState().bombTargetIds).toEqual(['blue-a', 'red-top'])
 
     store.getState().resetSliceView()
 
@@ -310,7 +312,7 @@ describe('gameStore public actions', () => {
 
     expect(store.getState().runState).toBe('targeting_bomb')
     expect(store.getState().selectedCubeId).toBeNull()
-    expect(store.getState().bombTargetIds).toEqual(['red-a', 'yellow-a'])
+    expect(store.getState().bombTargetIds).toEqual(['blue-a', 'blue-b', 'red-a', 'yellow-a'])
     expect(store.getState().statusHintKey).toBe('choose_bomb_target')
   })
 
@@ -348,16 +350,17 @@ describe('gameStore public actions', () => {
     expect(store.getState().statusHintKey).toBe('chooseValidTarget')
   })
 
-  it('keeps bomb targeting active after an invalid bomb target click', () => {
+  it('allows bombing a visible blue cube', () => {
     const store = createBombReadyStore()
 
     store.getState().activateBomb()
     store.getState().clickCube('blue-a')
 
-    expect(store.getState().runState).toBe('targeting_bomb')
+    expect(store.getState().runState).toBe('game_over')
     expect(store.getState().selectedCubeId).toBeNull()
-    expect(store.getState().bombTargetIds).toEqual(['red-a', 'yellow-a'])
-    expect(store.getState().statusHintKey).toBe('choose_bomb_target')
+    expect(store.getState().bombCount).toBe(0)
+    expect(store.getState().cubes.map((item: CubeData) => item.id)).toEqual(['red-a', 'yellow-a'])
+    expect(store.getState().matchResult).toEqual({ kind: 'game_over' })
   })
 
   it('rejects hidden bomb target ids during bomb targeting', () => {
@@ -370,7 +373,7 @@ describe('gameStore public actions', () => {
     expect(store.getState().runState).toBe('targeting_bomb')
     expect(store.getState().bombCount).toBe(1)
     expect(store.getState().cubes.map((item: CubeData) => item.id)).toEqual(['blue-a', 'red-top', 'yellow-mid'])
-    expect(store.getState().bombTargetIds).toEqual(['red-top'])
+    expect(store.getState().bombTargetIds).toEqual(['blue-a', 'red-top'])
     expect(store.getState().statusHintKey).toBe('choose_bomb_target')
   })
 
@@ -434,7 +437,7 @@ describe('gameStore public actions', () => {
     store.getState().showLayerFromTop(0)
 
     expect(store.getState().runState).toBe('targeting_bomb')
-    expect(store.getState().bombTargetIds).toEqual(['red-top'])
+    expect(store.getState().bombTargetIds).toEqual(['blue-a', 'red-top'])
 
     store.getState().showLayerFromTop(1)
 
@@ -701,6 +704,15 @@ describe('gameStore public actions', () => {
     vi.useRealTimers()
   })
 
+  it('validates injected configs passed into createGameStore', () => {
+    const config = createStoreConfig([
+      cube({ id: 'duplicate', color: 'blue', x: 0, y: 0, z: 0 }),
+      cube({ id: 'duplicate', color: 'red', x: 1, y: 0, z: 0 })
+    ])
+
+    expect(() => createGameStore({ config })).toThrow(PlayableDemoConfigError)
+  })
+
   it('does not enter game over when a legal move exists off the visible slice', () => {
     const store = createHiddenMoveNoBombStore()
 
@@ -720,7 +732,7 @@ describe('gameStore public actions', () => {
     expect(store.getState().runState).toBe('idle')
     expect(store.getState().matchResult).toEqual({ kind: 'in_progress' })
     expect(store.getState().validTargetIds).toEqual([])
-    expect(store.getState().bombTargetIds).toEqual(['red-visible'])
+    expect(store.getState().bombTargetIds).toEqual(['blue-a', 'red-visible'])
     expect(store.getState().statusHintKey).toBe('movesHiddenByView')
   })
 
@@ -753,7 +765,7 @@ describe('gameStore public actions', () => {
 
     expect(store.getState().runState).toBe('selected')
     expect(store.getState().validTargetIds).toEqual(['blue-b', 'red-a', 'yellow-a'])
-    expect(store.getState().bombTargetIds).toEqual(['red-a', 'yellow-a'])
+    expect(store.getState().bombTargetIds).toEqual(['blue-a', 'blue-b', 'red-a', 'yellow-a'])
     expect(store.getState().statusHintKey).toBe('choose_target')
   })
 
@@ -763,7 +775,7 @@ describe('gameStore public actions', () => {
     store.getState().showLayerFromTop(0)
     store.getState().activateBomb()
 
-    expect(store.getState().bombTargetIds).toEqual(['red-top'])
+    expect(store.getState().bombTargetIds).toEqual(['blue-a', 'red-top'])
 
     store.getState().showLayerFromTop(1)
 

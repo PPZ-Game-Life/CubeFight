@@ -179,7 +179,9 @@ export function HUD() {
   const localizedComboText = getComboText(comboText, t.hud.comboTexts)
   const showComboSurface = ui.showCombo && (comboCount > 0 || comboText !== null)
   const showPauseButton = ui.showPause && overlay === 'none'
-  const bombDisabled = bombCount <= 0 || overlay !== 'none' || runState === 'resolving'
+  const bombVisuallyDisabled = bombCount <= 0
+  const bombInteractionDisabled = overlay !== 'none' || runState === 'resolving'
+  const bombDisabled = bombVisuallyDisabled || bombInteractionDisabled
   const bombActive = runState === 'targeting_bomb'
   const overlayTitle = overlay === 'none' ? null : t.hud[overlayLabels[overlay]]
 
@@ -206,11 +208,18 @@ export function HUD() {
 
         <button
           aria-label={t.hud.bombs}
+          aria-disabled={bombDisabled}
           aria-pressed={bombActive}
-          disabled={bombDisabled}
+          disabled={bombInteractionDisabled}
           style={{ ...(bombDisabled ? actionButtonDisabledStyle : actionButtonStyle), flex: '1 1 160px' }}
           type="button"
-          onClick={bombActive ? cancelTargeting : activateBomb}
+          onClick={bombActive ? cancelTargeting : () => {
+            if (bombInteractionDisabled) {
+              return
+            }
+
+            activateBomb()
+          }}
         >
           <span style={{ ...labelStyle, display: 'block', color: 'inherit' }}>{t.hud.bombs}</span>
           <span style={{ display: 'block', marginTop: 6, fontSize: 24 }}>{bombCount}</span>

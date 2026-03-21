@@ -31,7 +31,7 @@ export default {
     statusHints: {
       select_blue_cube: '选择一个蓝色方块开始行动。',
       choose_target: '为当前选中的方块选择一个有效目标。',
-      choose_bomb_target: '选择一个当前可见的红色或黄色方块使用炸弹摧毁。',
+      choose_bomb_target: '选择一个当前可见的方块使用炸弹摧毁。',
       use_bomb: '当前没有可执行的棋盘移动，请使用炸弹或调整切片视图。',
       noBombs: '炸弹已经用完，请继续执行棋盘操作。',
       chooseValidTarget: '该目标对当前选中的方块无效。',

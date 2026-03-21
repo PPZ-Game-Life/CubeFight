@@ -134,7 +134,7 @@ export function getVisibleValidTargets(cubes: CubeData[], sourceId: string, slic
 
 export function getVisibleBombTargets(cubes: CubeData[], slice: SliceState): string[] {
   return cubes
-    .filter((cube) => (cube.color === 'red' || cube.color === 'yellow') && isVisibleInSlice(cube, slice))
+    .filter((cube) => isVisibleInSlice(cube, slice))
     .map((cube) => cube.id)
 }
 
@@ -198,10 +198,6 @@ export function resolveBomb(cubes: CubeData[], targetId: string): ResolveBombRes
 
   if (!target) {
     return { kind: 'invalid', reason: 'missing_target', cubes: cloneCubes(cubes) }
-  }
-
-  if (target.color === 'blue') {
-    return { kind: 'invalid', reason: 'invalid_target', cubes: cloneCubes(cubes) }
   }
 
   return {

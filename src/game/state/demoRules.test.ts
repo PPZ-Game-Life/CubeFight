@@ -185,7 +185,7 @@ describe('demo gameplay rules', () => {
       cube({ id: 'hidden', color: 'blue', x: 0, y: 0, z: 0 })
     ]
 
-    expect(getVisibleBombTargets(cubes, visibleTopSlice)).toEqual(['visible-a', 'visible-b'])
+    expect(getVisibleBombTargets(cubes, visibleTopSlice)).toEqual(['visible-a', 'visible-b', 'visible-blue'])
   })
 
   it('merges same-level adjacent blue cubes into the second-click position', () => {
@@ -288,7 +288,7 @@ describe('demo gameplay rules', () => {
     ])
   })
 
-  it('rejects bombing a blue cube', () => {
+  it('lets bombs target a visible blue cube and remove exactly that cube', () => {
     const cubes = [
       cube({ id: 'blue-target', color: 'blue', x: 0, y: 0, z: 0 }),
       cube({ id: 'red-survivor', color: 'red', x: 1, y: 0, z: 0 })
@@ -296,12 +296,13 @@ describe('demo gameplay rules', () => {
 
     const result = resolveBomb(cloneCubes(cubes), 'blue-target')
 
-    expect(result.kind).toBe('invalid')
-    if (result.kind !== 'invalid') {
-      throw new Error(`Expected invalid result, received ${result.kind}`)
+    expect(result.kind).toBe('bomb')
+    if (result.kind !== 'bomb') {
+      throw new Error(`Expected bomb result, received ${result.kind}`)
     }
-    expect(result.reason).toBe('invalid_target')
-    expect(result.cubes).toEqual(cubes)
+    expect(result.cubes).toEqual([
+      cube({ id: 'red-survivor', color: 'red', x: 1, y: 0, z: 0 })
+    ])
   })
 
   it('returns victory when all red cubes are gone', () => {

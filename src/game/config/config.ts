@@ -1,4 +1,4 @@
-import type { CubeColor, CubeData } from '../model/types'
+import type { CubeColor, CubeData, PlayableDemoConfig } from '../model/types'
 import { buildPlayableDemoConfig } from './playableDemo'
 import { assertPlayableDemoConfig } from './playableDemoValidation'
 
@@ -17,10 +17,13 @@ export const CUBE_COLORS: Record<CubeColor, string> = {
   yellow: '#fbbf24'
 }
 
-const PLAYABLE_DEMO_CONFIG = buildPlayableDemoConfig()
+export function getValidatedPlayableDemoConfig(config: unknown = buildPlayableDemoConfig()): PlayableDemoConfig {
+  assertPlayableDemoConfig(config)
+  return config
+}
 
-assertPlayableDemoConfig(PLAYABLE_DEMO_CONFIG)
-
-export const INITIAL_CUBES: CubeData[] = PLAYABLE_DEMO_CONFIG.board.cubes.map((cube) => ({ ...cube }))
+export function getInitialCubes(config: unknown = buildPlayableDemoConfig()): CubeData[] {
+  return getValidatedPlayableDemoConfig(config).board.cubes.map((cube) => ({ ...cube }))
+}
 
 export { buildPlayableDemoConfig }
