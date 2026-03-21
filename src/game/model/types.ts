@@ -12,6 +12,8 @@ export type ResumeTargetState = 'idle' | 'selected' | 'targeting_bomb' | null
 
 export type GameOverlay = 'none' | 'pause' | 'victory' | 'game_over'
 
+export type ComboTextKey = 'nice' | 'great' | 'awesome' | 'amazing' | 'godlike' | 'unstoppable'
+
 export type StatusHintKey =
   | 'select_blue_cube'
   | 'choose_target'

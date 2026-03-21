@@ -1,11 +1,11 @@
-import type { CubeData, GameOverlay, GameRunState, MatchResult, ResumeTargetState, StatusHintKey } from '../model/types'
+import type { ComboTextKey, CubeData, GameOverlay, GameRunState, MatchResult, ResumeTargetState, StatusHintKey } from '../model/types'
 import { getMatchResult } from './demoRules'
 
-const COMBO_TEXT_BY_COUNT = ['', '', 'Nice!', 'Great!', 'Awesome!', 'Amazing!', 'Godlike!']
+const COMBO_TEXT_BY_COUNT: ComboTextKey[] = ['nice', 'great', 'awesome', 'amazing', 'godlike']
 
 export interface ComboState {
   comboCount: number
-  comboText: string | null
+  comboText: ComboTextKey | null
   lastActionAt: number | null
   comboExpiresAt: number | null
 }
@@ -26,8 +26,8 @@ export interface PostActionEvaluation {
   statusHintKey: StatusHintKey
 }
 
-function getComboText(comboCount: number): string {
-  return comboCount < COMBO_TEXT_BY_COUNT.length ? COMBO_TEXT_BY_COUNT[comboCount] : 'UNSTOPPABLE!'
+function getComboText(comboCount: number): ComboTextKey {
+  return comboCount - 2 < COMBO_TEXT_BY_COUNT.length ? COMBO_TEXT_BY_COUNT[comboCount - 2] : 'unstoppable'
 }
 
 export function deriveStatusHintKey(snapshot: {

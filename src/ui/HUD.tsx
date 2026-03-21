@@ -1,6 +1,6 @@
 import React from 'react'
 
-import type { GameOverlay, StatusHintKey } from '../game/model/types'
+import type { ComboTextKey, GameOverlay, StatusHintKey } from '../game/model/types'
 import { useGameStore } from '../game/state/gameStore'
 import { useLocale } from './LocaleProvider'
 
@@ -24,6 +24,7 @@ const rootStyle: React.CSSProperties = {
 
 const topRowStyle: React.CSSProperties = {
   display: 'flex',
+  flexWrap: 'wrap',
   gap: 12,
   alignItems: 'flex-start',
   justifyContent: 'space-between'
@@ -31,6 +32,7 @@ const topRowStyle: React.CSSProperties = {
 
 const bottomRowStyle: React.CSSProperties = {
   display: 'flex',
+  flexWrap: 'wrap',
   gap: 12,
   alignItems: 'flex-end',
   justifyContent: 'space-between'
@@ -38,13 +40,16 @@ const bottomRowStyle: React.CSSProperties = {
 
 const clusterStyle: React.CSSProperties = {
   display: 'flex',
+  flex: '1 1 320px',
   gap: 12,
   flexWrap: 'wrap',
-  alignItems: 'stretch'
+  alignItems: 'stretch',
+  minWidth: 0
 }
 
 const surfaceStyle: React.CSSProperties = {
-  minWidth: 120,
+  flex: '1 1 120px',
+  minWidth: 0,
   padding: '12px 14px',
   border: '1px solid rgba(255,255,255,0.18)',
   borderRadius: 14,
@@ -69,6 +74,8 @@ const valueStyle: React.CSSProperties = {
 
 const hintStyle: React.CSSProperties = {
   ...surfaceStyle,
+  flex: '999 1 260px',
+  width: '100%',
   maxWidth: 380
 }
 
@@ -82,7 +89,8 @@ const actionButtonStyle: React.CSSProperties = {
   color: '#f5f7fb',
   font: 'inherit',
   fontWeight: 700,
-  cursor: 'pointer'
+  cursor: 'pointer',
+  maxWidth: '100%'
 }
 
 const actionButtonDisabledStyle: React.CSSProperties = {
@@ -131,6 +139,14 @@ function getHintText(
   return statusHints[statusHintKey]
 }
 
+function getComboText(comboText: ComboTextKey | null, comboTexts: Record<ComboTextKey, string>): string | null {
+  if (!comboText) {
+    return null
+  }
+
+  return comboTexts[comboText]
+}
+
 function Surface({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <section style={surfaceStyle}>
@@ -160,6 +176,7 @@ export function HUD() {
   } = useGameStore()
 
   const hintText = getHintText(statusHintKey, t.hud.statusHints)
+  const localizedComboText = getComboText(comboText, t.hud.comboTexts)
   const showComboSurface = ui.showCombo && (comboCount > 0 || comboText !== null)
   const showPauseButton = ui.showPause && overlay === 'none'
   const bombDisabled = bombCount <= 0 || overlay !== 'none' || runState === 'resolving'
@@ -171,11 +188,11 @@ export function HUD() {
       <div style={topRowStyle}>
         <div style={clusterStyle}>
           <Surface label={t.hud.score} value={score} />
-          {showComboSurface ? <Surface label={t.hud.combo} value={comboText ? `x${comboCount} ${comboText}` : comboCount} /> : null}
+          {showComboSurface ? <Surface label={t.hud.combo} value={localizedComboText ? `x${comboCount} ${localizedComboText}` : comboCount} /> : null}
           <Surface label={t.coins} value={coins} />
         </div>
         {showPauseButton ? (
-          <button style={actionButtonStyle} type="button" onClick={pauseGame}>
+          <button style={{ ...actionButtonStyle, flex: '0 1 auto' }} type="button" onClick={pauseGame}>
             {t.hud.pause}
           </button>
         ) : null}
@@ -191,7 +208,7 @@ export function HUD() {
           aria-label={t.hud.bombs}
           aria-pressed={bombActive}
           disabled={bombDisabled}
-          style={bombDisabled ? actionButtonDisabledStyle : actionButtonStyle}
+          style={{ ...(bombDisabled ? actionButtonDisabledStyle : actionButtonStyle), flex: '1 1 160px' }}
           type="button"
           onClick={bombActive ? cancelTargeting : activateBomb}
         >

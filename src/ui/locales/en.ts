@@ -20,6 +20,14 @@ export default {
     paused: 'Paused',
     victory: 'Victory',
     gameOver: 'Game Over',
+    comboTexts: {
+      nice: 'Nice!',
+      great: 'Great!',
+      awesome: 'Awesome!',
+      amazing: 'Amazing!',
+      godlike: 'Godlike!',
+      unstoppable: 'UNSTOPPABLE!'
+    },
     statusHints: {
       select_blue_cube: 'Select a blue cube to start your turn.',
       choose_target: 'Choose a valid target for the selected cube.',

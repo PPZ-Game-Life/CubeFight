@@ -3,6 +3,7 @@ import React, { createContext, useContext, useRef, useSyncExternalStore } from '
 import { CUBE_GAP, CUBE_SIZE } from '../config/config'
 import { buildPlayableDemoConfig } from '../config/playableDemo'
 import type {
+  ComboTextKey,
   CubeData,
   GameOverlay,
   GameRunState,
@@ -80,7 +81,7 @@ export type GameStoreSnapshot = {
   score: number
   coins: number
   comboCount: number
-  comboText: string | null
+  comboText: ComboTextKey | null
   gameOver: boolean
   mergeAnimation: MergeAnimationState | null
   slice: SliceState

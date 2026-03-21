@@ -163,4 +163,37 @@ describe('HUD', () => {
     expect(screen.getByRole('button', { name: '继续' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '重新开始' })).toBeInTheDocument()
   })
+
+  it('renders combo callout text in zh-CN without English fallback', () => {
+    const store = createGameStore({
+      config: buildConfig([
+        cube({ id: 'blue-a', color: 'blue', x: 0, y: 0, z: 0 }),
+        cube({ id: 'red-a', color: 'red', x: 1, y: 0, z: 0 }),
+        cube({ id: 'blue-b', color: 'blue', x: 0, y: 1, z: 0 }),
+        cube({ id: 'yellow-a', color: 'yellow', x: 1, y: 1, z: 0 }),
+        cube({ id: 'red-b', color: 'red', x: 2, y: 2, z: 2 })
+      ])
+    })
+
+    store.getState().selectCube('blue-a')
+    store.getState().commitBoardAction('red-a')
+    store.getState().selectCube('blue-b')
+    store.getState().commitBoardAction('yellow-a')
+
+    renderWithGameProviders({ store, locale: 'zh-CN' })
+
+    expect(screen.getByText('x2 不错！')).toBeInTheDocument()
+    expect(screen.queryByText('Nice!')).not.toBeInTheDocument()
+  })
+
+  it('uses wrapping row layouts so HUD can reflow on narrow screens', () => {
+    renderWithGameProviders()
+
+    const overlay = document.getElementById('ui-overlay')
+    const topRow = overlay?.children.item(0)
+    const bottomRow = overlay?.children.item(1)
+
+    expect(topRow).toHaveStyle({ flexWrap: 'wrap' })
+    expect(bottomRow).toHaveStyle({ flexWrap: 'wrap' })
+  })
 })

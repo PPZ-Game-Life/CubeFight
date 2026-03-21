@@ -20,6 +20,14 @@ export default {
     paused: '已暂停',
     victory: '胜利',
     gameOver: '游戏结束',
+    comboTexts: {
+      nice: '不错！',
+      great: '漂亮！',
+      awesome: '太棒了！',
+      amazing: '惊艳！',
+      godlike: '超神！',
+      unstoppable: '势不可挡！'
+    },
     statusHints: {
       select_blue_cube: '选择一个蓝色方块开始行动。',
       choose_target: '为当前选中的方块选择一个有效目标。',
