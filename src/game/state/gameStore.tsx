@@ -22,6 +22,7 @@ import {
   type ComboState
 } from './gameFlow'
 import {
+  getComboScore,
   getVisibleBombTargets,
   getVisibleValidTargets,
   resolveBoardAction,
@@ -183,6 +184,7 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
   const listeners = new Set<() => void>()
   let data = createInitialData(config)
   let comboTimer: TimeoutHandle | null = null
+  let pausedComboRemainingMs: number | null = null
   let resolutionTimer: TimeoutHandle | null = null
   let cachedSnapshot: GameStoreSnapshot | null = null
 
@@ -278,12 +280,6 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
     return nextCombo.comboCount
   }
 
-  const getComboMultiplier = (comboCount = data.comboCount) => {
-    const table = config.combo.multiplierTable
-    const index = Math.max(0, Math.min(comboCount, table.length) - 1)
-    return table[index] ?? 1
-  }
-
   const finalizeMerge = (resolvedCubes: CubeData[], awardedScore: number) => {
     data.cubes = resolvedCubes.map(cloneCube)
     data.selectedCubeId = null
@@ -358,7 +354,7 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
     }
 
     const comboCount = applyComboProgress()
-    const awardedScore = result.baseScore * getComboMultiplier(comboCount)
+    const awardedScore = getComboScore(result.baseScore, comboCount, config.combo.multiplierTable)
 
     if (result.kind === 'merge') {
       clearResolutionTimer()
@@ -399,6 +395,9 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
       return
     }
 
+    pausedComboRemainingMs = data.comboExpiresAt === null ? null : Math.max(0, data.comboExpiresAt - now())
+    clearComboTimer()
+
     data.resumeTargetState = data.runState === 'targeting_bomb' ? 'targeting_bomb' : data.selectedCubeId ? 'selected' : 'idle'
     data.runState = 'paused'
     data.overlay = 'pause'
@@ -410,6 +409,13 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
     if (data.runState !== 'paused') {
       return
     }
+
+    if (pausedComboRemainingMs !== null && data.comboCount > 0) {
+      data.lastActionAt = now() - (config.combo.timeoutMs - pausedComboRemainingMs)
+      data.comboExpiresAt = now() + pausedComboRemainingMs
+      scheduleComboExpiry()
+    }
+    pausedComboRemainingMs = null
 
     data.runState = data.resumeTargetState ?? 'idle'
     data.overlay = 'none'
@@ -447,6 +453,7 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
   const restartDemo = () => {
     clearComboTimer()
     clearResolutionTimer()
+    pausedComboRemainingMs = null
     data = createInitialData(config)
     syncInteractiveFlow()
     emit()
