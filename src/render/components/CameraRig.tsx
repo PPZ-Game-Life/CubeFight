@@ -17,13 +17,6 @@ export function CameraRig() {
     camera.up.set(0, 1, 0)
   }, [camera])
 
-  useEffect(() => {
-    if (!controlsRef.current) return
-    controlsRef.current.setAzimuthalAngle(0)
-    controlsRef.current.setPolarAngle(Math.PI / 2)
-    controlsRef.current.update()
-  }, [cameraState.resetVersion])
-
   return (
     <>
       <PerspectiveCamera makeDefault position={[0, 0, DISTANCE]} fov={60} near={0.1} far={1000} />

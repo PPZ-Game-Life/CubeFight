@@ -80,29 +80,42 @@ function isVisibleInSlice(cube: CubeData, slice: SliceState): boolean {
   return cube[slice.axis] === slice.index
 }
 
+function isMergePair(source: CubeData, target: CubeData): boolean {
+  return source.color === target.color && source.level === target.level && (source.color === 'blue' || source.color === 'yellow')
+}
+
+function isPlayerControlledSource(cube: CubeData): boolean {
+  return cube.color === 'blue' || cube.color === 'yellow'
+}
+
 function canResolveAction(source: CubeData, target: CubeData, action: DemoBoardAction): boolean {
-  if (source.color !== 'blue') {
+  if (!isPlayerControlledSource(source)) {
     return false
   }
 
   if (action.type === 'merge') {
-    return target.color === 'blue' && source.level === target.level
+    return isMergePair(source, target)
   }
 
-  return (target.color === 'red' || target.color === 'yellow') && source.level >= target.level
+  return source.color === 'blue' && (target.color === 'red' || target.color === 'yellow') && source.level >= target.level
 }
 
-function canTargetFromBlue(source: CubeData, target: CubeData): boolean {
-  if (source.color !== 'blue') {
+function canTargetFromSource(source: CubeData, target: CubeData): boolean {
+  if (!isPlayerControlledSource(source)) {
     return false
   }
 
-  return (target.color === 'blue' && source.level === target.level)
-    || ((target.color === 'red' || target.color === 'yellow') && source.level >= target.level)
+  if (isMergePair(source, target)) {
+    return true
+  }
+
+  return source.color === 'blue'
+    && (target.color === 'red' || target.color === 'yellow')
+    && source.level >= target.level
 }
 
-function hasLegalBlueMove(cubes: CubeData[]): boolean {
-  return cubes.some((cube) => cube.color === 'blue' && getValidTargets(cubes, cube.id).length > 0)
+function hasLegalPlayerMove(cubes: CubeData[]): boolean {
+  return cubes.some((cube) => isPlayerControlledSource(cube) && getValidTargets(cubes, cube.id).length > 0)
 }
 
 export function isAdjacent(a: CubeData, b: CubeData): boolean {
@@ -121,7 +134,7 @@ export function getValidTargets(cubes: CubeData[], sourceId: string): string[] {
   }
 
   return cubes
-    .filter((target) => target.id !== source.id && isAdjacent(source, target) && canTargetFromBlue(source, target))
+    .filter((target) => target.id !== source.id && isAdjacent(source, target) && canTargetFromSource(source, target))
     .map((target) => target.id)
 }
 
@@ -153,7 +166,7 @@ export function resolveBoardAction(
     return { kind: 'invalid', reason: 'missing_target', cubes: cloneCubes(cubes), baseScore: 0 }
   }
 
-  if (source.color !== 'blue') {
+  if (!isPlayerControlledSource(source)) {
     return { kind: 'invalid', reason: 'unsupported_source', cubes: cloneCubes(cubes), baseScore: 0 }
   }
 
@@ -214,7 +227,7 @@ export function getMatchResult(cubes: CubeData[], bombCount: number): MatchResul
     return { kind: 'victory' }
   }
 
-  if (bombCount === 0 && !hasLegalBlueMove(cubes)) {
+  if (bombCount === 0 && !hasLegalPlayerMove(cubes)) {
     return { kind: 'game_over' }
   }
 

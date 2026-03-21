@@ -332,6 +332,16 @@ describe('demo gameplay rules', () => {
     expect(result.baseScore).toBe(rulesConfig.scoring.devourYellowBase[2])
   })
 
+  it('returns adjacent same-level yellow cubes as legal merge targets', () => {
+    const cubes = [
+      cube({ id: 'yellow-source', color: 'yellow', level: 1, x: 0, y: 0, z: 0 }),
+      cube({ id: 'yellow-target', color: 'yellow', level: 1, x: 1, y: 0, z: 0 }),
+      cube({ id: 'red-target', color: 'red', level: 1, x: 0, y: 1, z: 0 })
+    ]
+
+    expect(getValidTargets(cubes, 'yellow-source')).toEqual(['yellow-target'])
+  })
+
   it('rejects an invalid non-adjacent target without mutating the board', () => {
     const rulesConfig = buildPlayableDemoConfig()
     const cubes = [
@@ -349,7 +359,7 @@ describe('demo gameplay rules', () => {
     expect(result.cubes).toEqual(cubes)
   })
 
-  it('rejects non-blue source actions clearly', () => {
+  it('lets yellow merge with a legal yellow target', () => {
     const rulesConfig = buildPlayableDemoConfig()
     const cubes = [
       cube({ id: 'yellow-source', color: 'yellow', level: 1, x: 0, y: 0, z: 0 }),
@@ -358,12 +368,30 @@ describe('demo gameplay rules', () => {
 
     const result = resolveBoardAction(cloneCubes(cubes), { type: 'merge', sourceId: 'yellow-source', targetId: 'yellow-target' }, rulesConfig)
 
+    expect(result.kind).toBe('merge')
+    if (result.kind !== 'merge') {
+      throw new Error(`Expected merge result, received ${result.kind}`)
+    }
+    expect(result.cubes).toEqual([
+      cube({ id: 'yellow-source', color: 'yellow', level: 2, x: 1, y: 0, z: 0 })
+    ])
+    expect(result.baseScore).toBe(rulesConfig.scoring.mergeBase[2])
+  })
+
+  it('still rejects yellow devour attempts clearly', () => {
+    const rulesConfig = buildPlayableDemoConfig()
+    const cubes = [
+      cube({ id: 'yellow-source', color: 'yellow', level: 1, x: 0, y: 0, z: 0 }),
+      cube({ id: 'red-target', color: 'red', level: 1, x: 1, y: 0, z: 0 })
+    ]
+
+    const result = resolveBoardAction(cloneCubes(cubes), { type: 'devour', sourceId: 'yellow-source', targetId: 'red-target' }, rulesConfig)
+
     expect(result.kind).toBe('invalid')
     if (result.kind !== 'invalid') {
       throw new Error(`Expected invalid result, received ${result.kind}`)
     }
-    expect(result.reason).toBe('unsupported_source')
-    expect(result.cubes).toEqual(cubes)
+    expect(result.reason).toBe('invalid_target')
   })
 
   it('removes exactly one targeted cube when a bomb resolves', () => {

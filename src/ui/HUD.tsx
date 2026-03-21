@@ -1,102 +1,147 @@
 import React from 'react'
 
-import type { ComboTextKey, GameOverlay, StatusHintKey } from '../game/model/types'
+import { GRID_SIZE } from '../game/config/config'
+import type { ComboTextKey } from '../game/model/types'
 import { useGameStore } from '../game/state/gameStore'
 import { useLocale } from './LocaleProvider'
-
-const overlayLabels: Record<Exclude<GameOverlay, 'none'>, 'paused' | 'victory' | 'gameOver'> = {
-  pause: 'paused',
-  victory: 'victory',
-  game_over: 'gameOver'
-}
 
 const rootStyle: React.CSSProperties = {
   position: 'absolute',
   inset: 0,
-  pointerEvents: 'none',
   display: 'flex',
   flexDirection: 'column',
   justifyContent: 'space-between',
-  padding: 16,
-  color: '#f5f7fb',
-  fontFamily: '"Trebuchet MS", "Segoe UI", sans-serif'
+  padding: 'var(--hud-padding, 16px)',
+  pointerEvents: 'none',
+  color: '#f4f1ea',
+  fontFamily: '"Avenir Next", "Segoe UI", sans-serif'
 }
 
-const topRowStyle: React.CSSProperties = {
+const statBarStyle: React.CSSProperties = {
+  alignSelf: 'center',
+  width: 'min(var(--hud-stat-max-width, 820px), calc(100vw - var(--hud-padding, 16px) * 2))',
   display: 'flex',
-  flexWrap: 'wrap',
-  gap: 12,
-  alignItems: 'flex-start',
-  justifyContent: 'space-between'
+  justifyContent: 'center',
+  alignItems: 'center',
+  pointerEvents: 'none'
 }
 
 const bottomRowStyle: React.CSSProperties = {
+  alignSelf: 'stretch',
   display: 'flex',
-  flexWrap: 'wrap',
-  gap: 12,
+  justifyContent: 'flex-end',
   alignItems: 'flex-end',
-  justifyContent: 'space-between'
+  gap: 'var(--hud-gap-lg, 16px)'
 }
 
-const clusterStyle: React.CSSProperties = {
-  display: 'flex',
-  flex: '1 1 320px',
-  gap: 12,
-  flexWrap: 'wrap',
-  alignItems: 'stretch',
-  minWidth: 0
+const glassPanelStyle: React.CSSProperties = {
+  border: '1px solid rgba(255, 255, 255, 0.18)',
+  borderRadius: 20,
+  background: 'linear-gradient(180deg, rgba(122, 142, 150, 0.18), rgba(45, 58, 68, 0.24))',
+  boxShadow: '0 18px 42px rgba(12, 18, 24, 0.18)',
+  backdropFilter: 'blur(16px) saturate(140%)'
 }
 
-const surfaceStyle: React.CSSProperties = {
-  flex: '1 1 120px',
+const statCardStyle: React.CSSProperties = {
+  ...glassPanelStyle,
+  flex: '0 0 auto',
   minWidth: 0,
-  padding: '12px 14px',
-  border: '1px solid rgba(255,255,255,0.18)',
-  borderRadius: 14,
-  background: 'rgba(10, 18, 31, 0.72)',
-  boxShadow: '0 10px 28px rgba(0, 0, 0, 0.28)',
-  backdropFilter: 'blur(10px)'
+  padding: 'var(--hud-card-padding, 12px 16px 14px)'
 }
 
-const labelStyle: React.CSSProperties = {
-  fontSize: 11,
-  letterSpacing: '0.08em',
-  textTransform: 'uppercase',
-  color: 'rgba(235, 242, 255, 0.74)'
-}
-
-const valueStyle: React.CSSProperties = {
-  marginTop: 6,
-  fontSize: 28,
-  fontWeight: 700,
-  lineHeight: 1
-}
-
-const hintStyle: React.CSSProperties = {
-  ...surfaceStyle,
-  flex: '999 1 260px',
-  width: '100%',
-  maxWidth: 380
-}
-
-const actionButtonStyle: React.CSSProperties = {
+const scorePillStyle: React.CSSProperties = {
+  ...glassPanelStyle,
   pointerEvents: 'auto',
-  appearance: 'none',
-  border: '1px solid rgba(255,255,255,0.2)',
-  borderRadius: 12,
-  padding: '12px 16px',
-  background: 'rgba(14, 25, 41, 0.84)',
-  color: '#f5f7fb',
-  font: 'inherit',
-  fontWeight: 700,
-  cursor: 'pointer',
-  maxWidth: '100%'
+  display: 'inline-flex',
+  alignItems: 'center',
+  width: 'fit-content',
+  maxWidth: 'calc(100vw - 120px)',
+  padding: 'var(--hud-hero-padding, 8px 18px 10px)',
+  background: 'linear-gradient(180deg, rgba(132, 154, 170, 0.12), rgba(34, 47, 59, 0.1))'
 }
 
-const actionButtonDisabledStyle: React.CSSProperties = {
-  ...actionButtonStyle,
-  opacity: 0.45,
+const compactLabelStyle: React.CSSProperties = {
+  fontSize: 'var(--hud-label-size, 9px)',
+  lineHeight: 1,
+  letterSpacing: '0.16em',
+  textTransform: 'uppercase',
+  color: 'rgba(244, 241, 234, 0.68)'
+}
+
+const scoreValueStyle: React.CSSProperties = {
+  marginTop: 'var(--hud-value-margin, 8px)',
+  fontSize: 'var(--hud-score-size, 38px)',
+  lineHeight: 1,
+  fontWeight: 700,
+  fontVariantNumeric: 'tabular-nums',
+  letterSpacing: '0.02em',
+  color: '#f7fbff',
+  textShadow: '0 0 18px rgba(214, 233, 255, 0.22)'
+}
+
+const secondaryValueStyle: React.CSSProperties = {
+  marginTop: 'var(--hud-value-margin, 8px)',
+  fontSize: 'var(--hud-secondary-size, 30px)',
+  lineHeight: 1.1,
+  fontWeight: 700,
+  fontVariantNumeric: 'tabular-nums',
+  color: '#edf1ea'
+}
+
+const coinsValueStyle: React.CSSProperties = {
+  ...secondaryValueStyle,
+  color: '#f0c37b',
+  textShadow: '0 0 14px rgba(255, 196, 95, 0.18)'
+}
+
+const bombDockStyle: React.CSSProperties = {
+  ...glassPanelStyle,
+  pointerEvents: 'auto',
+  width: 'var(--hud-bomb-width, 148px)',
+  minHeight: 'var(--hud-bomb-height, 92px)',
+  padding: 'var(--hud-bomb-padding, 14px 16px 16px)',
+  appearance: 'none',
+  cursor: 'pointer',
+  textAlign: 'center',
+  color: '#f4f1ea',
+  transition: 'transform 160ms ease, box-shadow 160ms ease, opacity 160ms ease, border-color 160ms ease',
+  backgroundImage: 'linear-gradient(180deg, rgba(255, 214, 148, 0.16), rgba(63, 73, 82, 0.22))'
+}
+
+const utilityButtonStyle: React.CSSProperties = {
+  pointerEvents: 'auto',
+  position: 'absolute',
+  top: 'var(--hud-padding, 16px)',
+  left: 'var(--hud-padding, 16px)',
+  width: 'var(--hud-utility-size, 46px)',
+  height: 'var(--hud-utility-size, 46px)',
+  appearance: 'none',
+  cursor: 'pointer',
+  color: '#e7edf2',
+  border: 'none',
+  background: 'radial-gradient(circle, rgba(16, 26, 39, 0.46), rgba(16, 26, 39, 0.08) 72%, rgba(16, 26, 39, 0))',
+  transition: 'transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease'
+}
+
+const bombDockDisabledStyle: React.CSSProperties = {
+  ...bombDockStyle,
+  opacity: 0.56,
   cursor: 'not-allowed'
+}
+
+const bombCountStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'baseline',
+  gap: 'var(--hud-bomb-gap, 8px)',
+  marginTop: 'var(--hud-bomb-margin, 10px)',
+  fontVariantNumeric: 'tabular-nums'
+}
+
+const bombCountValueStyle: React.CSSProperties = {
+  fontSize: 'var(--hud-score-size, 34px)',
+  lineHeight: 1,
+  fontWeight: 700,
+  color: '#fff4d7'
 }
 
 const overlayStyle: React.CSSProperties = {
@@ -105,38 +150,43 @@ const overlayStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  background: 'rgba(3, 8, 15, 0.6)',
+  background: 'rgba(17, 24, 31, 0.34)',
   pointerEvents: 'auto'
 }
 
 const overlayCardStyle: React.CSSProperties = {
-  minWidth: 280,
-  maxWidth: 360,
-  padding: 24,
-  borderRadius: 20,
-  border: '1px solid rgba(255,255,255,0.16)',
-  background: 'linear-gradient(180deg, rgba(18, 31, 50, 0.96), rgba(9, 18, 32, 0.96))',
-  boxShadow: '0 22px 48px rgba(0, 0, 0, 0.32)',
-  textAlign: 'center'
+  ...glassPanelStyle,
+  minWidth: 300,
+  maxWidth: 380,
+  padding: 28,
+  textAlign: 'center',
+  background: 'linear-gradient(180deg, rgba(132, 151, 160, 0.24), rgba(40, 52, 60, 0.28))'
 }
 
 const overlayActionsStyle: React.CSSProperties = {
   display: 'flex',
-  gap: 10,
   justifyContent: 'center',
-  flexWrap: 'wrap',
   marginTop: 20
 }
 
-function getHintText(
-  statusHintKey: StatusHintKey | null,
-  statusHints: Record<StatusHintKey, string>
-): string | null {
-  if (!statusHintKey) {
-    return null
-  }
+const restartButtonStyle: React.CSSProperties = {
+  pointerEvents: 'auto',
+  appearance: 'none',
+  border: '1px solid rgba(255, 255, 255, 0.2)',
+  borderRadius: 14,
+  padding: '12px 18px',
+  background: 'rgba(255, 244, 215, 0.1)',
+  color: '#f7f3ea',
+  font: 'inherit',
+  fontWeight: 700,
+  cursor: 'pointer'
+}
 
-  return statusHints[statusHintKey]
+const overlayTitleStyle: React.CSSProperties = {
+  margin: '10px 0 0',
+  fontSize: 34,
+  lineHeight: 1.05,
+  color: '#f6f1e8'
 }
 
 function getComboText(comboText: ComboTextKey | null, comboTexts: Record<ComboTextKey, string>): string | null {
@@ -147,71 +197,110 @@ function getComboText(comboText: ComboTextKey | null, comboTexts: Record<ComboTe
   return comboTexts[comboText]
 }
 
-function Surface({ label, value }: { label: string; value: React.ReactNode }) {
+function StatCard({ label, value, style }: { label: string; value: React.ReactNode; style?: React.CSSProperties }) {
   return (
-    <section style={surfaceStyle}>
-      <div style={labelStyle}>{label}</div>
-      <div style={valueStyle}>{value}</div>
+    <section style={{ ...statCardStyle, ...style }}>
+      <div style={compactLabelStyle}>{label}</div>
+      <div>{value}</div>
     </section>
   )
 }
 
-export function HUD() {
+function ScorePill({ score, coins, scoreLabel, coinsLabel }: { score: number; coins: number; scoreLabel: string; coinsLabel: string }) {
+  return (
+    <section className="hud__score-pill" data-testid="hud-score-hero" style={scorePillStyle}>
+      <div className="hud__score-pill-side hud__score-pill-side--score">
+        <div style={compactLabelStyle}>{scoreLabel}</div>
+        <div style={scoreValueStyle}>{score}</div>
+      </div>
+      <div aria-hidden="true" className="hud__score-pill-divider" />
+      <div className="hud__score-pill-side hud__score-pill-side--coins">
+        <div style={compactLabelStyle}>{coinsLabel}</div>
+        <div style={coinsValueStyle}>{coins}</div>
+      </div>
+    </section>
+  )
+}
+
+function GameOverlay({ overlay, title, restartLabel, restartDemo }: {
+  overlay: 'none' | 'pause' | 'victory' | 'game_over'
+  title: string | null
+  restartLabel: string
+  restartDemo: () => void
+}) {
+  if (overlay !== 'victory' && overlay !== 'game_over') {
+    return null
+  }
+
+  return (
+    <div aria-label={title ?? undefined} role="dialog" style={overlayStyle}>
+      <div style={overlayCardStyle}>
+        <div style={compactLabelStyle}>CubeFight</div>
+        <h2 style={overlayTitleStyle}>{title}</h2>
+        <div style={overlayActionsStyle}>
+          <button style={restartButtonStyle} type="button" onClick={restartDemo}>
+            {restartLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export function HUD({ onBackToLobby }: { onBackToLobby: () => void }) {
   const { t } = useLocale()
   const {
     bombCount,
+    cubes,
     coins,
     comboCount,
     comboText,
     overlay,
-    pauseGame,
     restartDemo,
-    resumeGame,
     runState,
     score,
-    statusHintKey,
     ui,
     activateBomb,
     cancelTargeting
   } = useGameStore()
 
-  const hintText = getHintText(statusHintKey, t.hud.statusHints)
   const localizedComboText = getComboText(comboText, t.hud.comboTexts)
   const showComboSurface = ui.showCombo && (comboCount > 0 || comboText !== null)
-  const showPauseButton = ui.showPause && overlay === 'none'
   const bombVisuallyDisabled = bombCount <= 0
   const bombInteractionDisabled = overlay !== 'none' || runState === 'resolving'
   const bombDisabled = bombVisuallyDisabled || bombInteractionDisabled
   const bombActive = runState === 'targeting_bomb'
-  const overlayTitle = overlay === 'none' ? null : t.hud[overlayLabels[overlay]]
+  const overlayTitle = overlay === 'victory' ? t.hud.victory : overlay === 'game_over' ? t.hud.gameOver : null
+  const boardFillRatio = cubes.length / Math.pow(GRID_SIZE, 3)
+  const showCrisisGlow = boardFillRatio >= 0.7
 
   return (
-    <div id="ui-overlay" style={rootStyle}>
-      <div style={topRowStyle}>
-        <div style={clusterStyle}>
-          <Surface label={t.hud.score} value={score} />
-          {showComboSurface ? <Surface label={t.hud.combo} value={localizedComboText ? `x${comboCount} ${localizedComboText}` : comboCount} /> : null}
-          <Surface label={t.coins} value={coins} />
-        </div>
-        {showPauseButton ? (
-          <button style={{ ...actionButtonStyle, flex: '0 1 auto' }} type="button" onClick={pauseGame}>
-            {t.hud.pause}
-          </button>
-        ) : null}
+    <div className="hud" id="ui-overlay" style={rootStyle}>
+      <button aria-label={t.hud.lobby} data-testid="hud-lobby-button" style={utilityButtonStyle} type="button" onClick={onBackToLobby}>
+        <span aria-hidden="true" style={{ fontSize: 22, lineHeight: 1 }}>⌂</span>
+      </button>
+
+      <div className="hud__stat-bar" data-testid="hud-stat-bar" style={statBarStyle}>
+        <ScorePill coins={coins} coinsLabel={t.coins} score={score} scoreLabel={t.hud.score} />
       </div>
 
-      <div style={bottomRowStyle}>
-        <section style={hintStyle}>
-          <div style={labelStyle}>{t.hud.status}</div>
-          <div style={{ marginTop: 8, fontSize: 16, lineHeight: 1.4 }}>{hintText}</div>
-        </section>
+      {showComboSurface ? (
+        <div aria-live="polite" className="hud__combo-callout" data-testid="hud-combo-callout">
+          <span className="hud__combo-chip">x{comboCount}</span>
+          {localizedComboText ? <span className="hud__combo-text">{localizedComboText}</span> : null}
+        </div>
+      ) : null}
 
+      {showCrisisGlow ? <div className="hud__crisis-glow" data-testid="hud-crisis-glow" /> : null}
+
+      <div className="hud__bottom-row" data-testid="hud-bottom-row" style={bottomRowStyle}>
         <button
-          aria-label={t.hud.bombs}
           aria-disabled={bombDisabled}
+          aria-label={t.hud.bombs}
           aria-pressed={bombActive}
+          data-testid="hud-bomb-dock"
           disabled={bombInteractionDisabled}
-          style={{ ...(bombDisabled ? actionButtonDisabledStyle : actionButtonStyle), flex: '1 1 160px' }}
+          style={bombDisabled ? bombDockDisabledStyle : bombDockStyle}
           type="button"
           onClick={bombActive ? cancelTargeting : () => {
             if (bombInteractionDisabled) {
@@ -221,29 +310,15 @@ export function HUD() {
             activateBomb()
           }}
         >
-          <span style={{ ...labelStyle, display: 'block', color: 'inherit' }}>{t.hud.bombs}</span>
-          <span style={{ display: 'block', marginTop: 6, fontSize: 24 }}>{bombCount}</span>
+          <div style={compactLabelStyle}>{t.hud.bombs}</div>
+          <div style={bombCountStyle}>
+            <span style={bombCountValueStyle}>{bombCount}</span>
+          </div>
+          <span aria-hidden="true" className={`hud__bomb-badge${bombActive ? ' is-active' : ''}`}>{bombActive ? '●' : '+'}</span>
         </button>
       </div>
 
-      {overlay !== 'none' ? (
-        <div aria-label={overlayTitle ?? undefined} role="dialog" style={overlayStyle}>
-          <div style={overlayCardStyle}>
-            <div style={{ ...labelStyle, color: 'rgba(235, 242, 255, 0.8)' }}>{t.title}</div>
-            <h2 style={{ margin: '10px 0 0', fontSize: 32 }}>{overlayTitle}</h2>
-            <div style={overlayActionsStyle}>
-              {overlay === 'pause' ? (
-                <button style={actionButtonStyle} type="button" onClick={resumeGame}>
-                  {t.hud.resume}
-                </button>
-              ) : null}
-              <button style={actionButtonStyle} type="button" onClick={restartDemo}>
-                {t.hud.restart}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <GameOverlay overlay={overlay} restartDemo={restartDemo} restartLabel={t.hud.restart} title={overlayTitle} />
     </div>
   )
 }

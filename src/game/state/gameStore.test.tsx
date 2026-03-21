@@ -181,6 +181,22 @@ describe('gameStore selection states', () => {
     expect(store.getState().statusHintKey).toBe('choose_target')
   })
 
+  it('lets yellow cubes be selected for yellow merge actions', () => {
+    const store = createGameStore({
+      config: createStoreConfig([
+        cube({ id: 'yellow-a', color: 'yellow', level: 1, x: 0, y: 0, z: 0 }),
+        cube({ id: 'yellow-b', color: 'yellow', level: 1, x: 1, y: 0, z: 0 }),
+        cube({ id: 'red-a', color: 'red', level: 2, x: 2, y: 2, z: 2 })
+      ], 0)
+    })
+
+    store.getState().selectCube('yellow-a')
+
+    expect(store.getState().runState).toBe('selected')
+    expect(store.getState().selectedCubeId).toBe('yellow-a')
+    expect(store.getState().validTargetIds).toEqual(['yellow-b'])
+  })
+
   it('switches selection to another blue cube', () => {
     const store = createTestStore()
 
@@ -273,6 +289,58 @@ describe('gameStore test helpers', () => {
 })
 
 describe('gameStore public actions', () => {
+  it('uses browser timer globals without illegal invocation during combo scheduling', () => {
+    const originalSetTimeout = globalThis.setTimeout
+    const originalClearTimeout = globalThis.clearTimeout
+
+    const scheduled = new Map<number, () => void>()
+    let nextTimerId = 1
+
+    globalThis.setTimeout = function mockedSetTimeout(this: typeof globalThis, handler: TimerHandler): number {
+      if (this !== globalThis) {
+        throw new TypeError('Illegal invocation')
+      }
+
+      if (typeof handler !== 'function') {
+        throw new TypeError('Expected function handler')
+      }
+
+      const id = nextTimerId++
+      scheduled.set(id, handler as () => void)
+      return id
+    } as typeof globalThis.setTimeout
+
+    globalThis.clearTimeout = function mockedClearTimeout(this: typeof globalThis, handle?: number | undefined) {
+      if (this !== globalThis) {
+        throw new TypeError('Illegal invocation')
+      }
+
+      if (typeof handle === 'number') {
+        scheduled.delete(handle)
+      }
+    } as typeof globalThis.clearTimeout
+
+    try {
+      const store = createGameStore({
+        config: createStoreConfig([
+          cube({ id: 'blue-a', color: 'blue', level: 1, x: 0, y: 0, z: 0 }),
+          cube({ id: 'red-a', color: 'red', level: 1, x: 1, y: 0, z: 0 }),
+          cube({ id: 'red-spare', color: 'red', level: 2, x: 2, y: 2, z: 2 })
+        ])
+      })
+
+      expect(() => {
+        store.getState().selectCube('blue-a')
+        store.getState().commitBoardAction('red-a')
+      }).not.toThrow()
+
+      expect(scheduled.size).toBe(1)
+    } finally {
+      globalThis.setTimeout = originalSetTimeout
+      globalThis.clearTimeout = originalClearTimeout
+    }
+  })
+
   it('returns the same snapshot reference when state has not changed', () => {
     const store = createTestStore()
 
@@ -348,6 +416,78 @@ describe('gameStore public actions', () => {
     expect(store.getState().cubes.map((item: CubeData) => item.id)).toEqual(['blue-a', 'blue-hidden', 'red-visible'])
     expect(store.getState().score).toBe(0)
     expect(store.getState().statusHintKey).toBe('chooseValidTarget')
+  })
+
+  it('treats clicking a highlighted blue target as a merge commit instead of reselection', () => {
+    vi.useFakeTimers()
+
+    const store = createGameStore({
+      config: createStoreConfig([
+        cube({ id: 'blue-a', color: 'blue', level: 1, x: 0, y: 0, z: 0 }),
+        cube({ id: 'blue-b', color: 'blue', level: 1, x: 1, y: 0, z: 0 }),
+        cube({ id: 'red-spare', color: 'red', level: 2, x: 2, y: 2, z: 2 })
+      ])
+    })
+
+    store.getState().clickCube('blue-a')
+    store.getState().clickCube('blue-b')
+
+    expect(store.getState().runState).toBe('resolving')
+
+    vi.advanceTimersByTime(240)
+
+    expect(store.getState().cubes).toEqual([
+      cube({ id: 'blue-a', color: 'blue', level: 2, x: 1, y: 0, z: 0 }),
+      cube({ id: 'red-spare', color: 'red', level: 2, x: 2, y: 2, z: 2 })
+    ])
+
+    vi.useRealTimers()
+  })
+
+  it('keeps click-to-devour working for highlighted non-blue targets', () => {
+    const store = createGameStore({
+      config: createStoreConfig([
+        cube({ id: 'blue-a', color: 'blue', level: 2, x: 0, y: 0, z: 0 }),
+        cube({ id: 'yellow-a', color: 'yellow', level: 1, x: 1, y: 0, z: 0 }),
+        cube({ id: 'red-spare', color: 'red', level: 2, x: 2, y: 2, z: 2 })
+      ])
+    })
+
+    store.getState().clickCube('blue-a')
+    store.getState().clickCube('yellow-a')
+
+    expect(store.getState().runState).toBe('idle')
+    expect(store.getState().cubes).toEqual([
+      cube({ id: 'blue-a', color: 'blue', level: 2, x: 1, y: 0, z: 0 }),
+      cube({ id: 'red-spare', color: 'red', level: 2, x: 2, y: 2, z: 2 })
+    ])
+    expect(store.getState().coins).toBe(1)
+  })
+
+  it('lets clicking a highlighted yellow target commit a yellow merge', () => {
+    vi.useFakeTimers()
+
+    const store = createGameStore({
+      config: createStoreConfig([
+        cube({ id: 'yellow-a', color: 'yellow', level: 1, x: 0, y: 0, z: 0 }),
+        cube({ id: 'yellow-b', color: 'yellow', level: 1, x: 1, y: 0, z: 0 }),
+        cube({ id: 'red-spare', color: 'red', level: 2, x: 2, y: 2, z: 2 })
+      ], 0)
+    })
+
+    store.getState().clickCube('yellow-a')
+    store.getState().clickCube('yellow-b')
+
+    expect(store.getState().runState).toBe('resolving')
+
+    vi.advanceTimersByTime(240)
+
+    expect(store.getState().cubes).toEqual([
+      cube({ id: 'yellow-a', color: 'yellow', level: 2, x: 1, y: 0, z: 0 }),
+      cube({ id: 'red-spare', color: 'red', level: 2, x: 2, y: 2, z: 2 })
+    ])
+
+    vi.useRealTimers()
   })
 
   it('allows bombing a visible blue cube', () => {
@@ -671,6 +811,19 @@ describe('gameStore public actions', () => {
     expect(store.getState().runState).toBe('game_over')
     expect(store.getState().comboCount).toBe(0)
     expect(store.getState().comboText).toBeNull()
+  })
+
+  it('does not enter game over while yellow merge moves still exist', () => {
+    const store = createGameStore({
+      config: createStoreConfig([
+        cube({ id: 'yellow-a', color: 'yellow', level: 1, x: 0, y: 0, z: 0 }),
+        cube({ id: 'yellow-b', color: 'yellow', level: 1, x: 1, y: 0, z: 0 }),
+        cube({ id: 'red-strong', color: 'red', level: 2, x: 2, y: 2, z: 2 })
+      ], 0)
+    })
+
+    expect(store.getState().runState).toBe('idle')
+    expect(store.getState().matchResult).toEqual({ kind: 'in_progress' })
   })
 
   it('uses the configured base scores for red devours, yellow devours, and merges before multiplying by combo', () => {

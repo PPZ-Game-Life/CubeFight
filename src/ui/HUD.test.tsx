@@ -30,6 +30,7 @@ function renderWithGameProviders(options: {
   locale?: Locale
   store?: GameStore
   config?: PlayableDemoConfig
+  onBackToLobby?: () => void
 } = {}) {
   const locale = options.locale ?? 'en'
   const store = options.store ?? createGameStore({ config: options.config })
@@ -39,11 +40,11 @@ function renderWithGameProviders(options: {
   return {
     store,
     ...render(
-      <LocaleProvider>
-        <GameStoreContext.Provider value={store}>
-          <HUD />
-        </GameStoreContext.Provider>
-      </LocaleProvider>
+        <LocaleProvider>
+          <GameStoreContext.Provider value={store}>
+            <HUD onBackToLobby={options.onBackToLobby ?? (() => undefined)} />
+          </GameStoreContext.Provider>
+        </LocaleProvider>
     )
   }
 }
@@ -53,7 +54,7 @@ afterEach(() => {
 })
 
 describe('HUD', () => {
-  it('renders localized score, combo, bomb, and status surfaces', () => {
+  it('renders localized score pill, combo callout, and bomb surfaces', () => {
     const store = createGameStore({
       config: buildConfig([
         cube({ id: 'blue-a', color: 'blue', x: 0, y: 0, z: 0 }),
@@ -68,13 +69,12 @@ describe('HUD', () => {
     renderWithGameProviders({ store })
 
     expect(screen.getByText('Score')).toBeInTheDocument()
-    expect(screen.getByText('Combo')).toBeInTheDocument()
     expect(screen.getByText('Bombs')).toBeInTheDocument()
-    expect(screen.getByText('Hint')).toBeInTheDocument()
-    expect(screen.getByText('Resolving move...')).toBeInTheDocument()
+    expect(screen.getByTestId('hud-score-hero')).toBeInTheDocument()
+    expect(screen.getByTestId('hud-combo-callout')).toBeInTheDocument()
   })
 
-  it('shows a pause overlay and wires resume and restart actions', () => {
+  it('does not render a pause entry in the revamped in-game hud', () => {
     const store = createGameStore({
       config: buildConfig([
         cube({ id: 'blue-a', color: 'blue', x: 0, y: 0, z: 0 }),
@@ -85,20 +85,8 @@ describe('HUD', () => {
 
     renderWithGameProviders({ store })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Pause' }))
-
-    expect(screen.getByRole('dialog', { name: 'Paused' })).toBeInTheDocument()
-    expect(store.getState().overlay).toBe('pause')
-
-    fireEvent.click(screen.getByRole('button', { name: 'Resume' }))
-    expect(store.getState().overlay).toBe('none')
-
-    fireEvent.click(screen.getByRole('button', { name: 'Pause' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Restart' }))
-
-    expect(store.getState().overlay).toBe('none')
-    expect(store.getState().runState).toBe('idle')
-    expect(store.getState().score).toBe(0)
+    expect(screen.queryByRole('button', { name: 'Pause' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Paused' })).not.toBeInTheDocument()
   })
 
   it('renders victory and game-over overlays', () => {
@@ -142,12 +130,11 @@ describe('HUD', () => {
 
     fireEvent.click(bombButton)
 
-    expect(screen.getByText('No bombs left. Make a board move to continue.')).toBeInTheDocument()
     expect(screen.queryByText('Combo')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Pause' })).not.toBeInTheDocument()
   })
 
-  it('renders zh-CN locale labels, hints, and overlay actions', () => {
+  it('renders zh-CN locale labels and end-state overlay actions', () => {
     const store = createGameStore({
       config: buildConfig([
         cube({ id: 'blue-a', color: 'blue', x: 0, y: 0, z: 0 }),
@@ -156,18 +143,57 @@ describe('HUD', () => {
       ])
     })
 
+    store.getState().selectCube('blue-a')
+    store.getState().commitBoardAction('red-a')
+
     renderWithGameProviders({ store, locale: 'zh-CN' })
 
     expect(screen.getByText('积分')).toBeInTheDocument()
     expect(screen.getByText('炸弹')).toBeInTheDocument()
-    expect(screen.getByText('提示')).toBeInTheDocument()
-    expect(screen.getByText('选择一个蓝色方块开始行动。')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: '暂停' }))
-
-    expect(screen.getByRole('dialog', { name: '已暂停' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '继续' })).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: '胜利' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '重新开始' })).toBeInTheDocument()
+  })
+
+  it('renders the revamped stat bar and bomb dock landmarks', () => {
+    renderWithGameProviders()
+
+    expect(screen.getByTestId('hud-stat-bar')).toBeInTheDocument()
+    expect(screen.getByTestId('hud-score-hero')).toBeInTheDocument()
+    expect(screen.getByTestId('hud-lobby-button')).toBeInTheDocument()
+    expect(screen.getByTestId('hud-bomb-dock')).toBeInTheDocument()
+    expect(screen.getByTestId('hud-bottom-row')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Hammer')).not.toBeInTheDocument()
+  })
+
+  it('routes the lobby button to the supplied callback', () => {
+    const onBackToLobby = vi.fn()
+
+    renderWithGameProviders({ onBackToLobby })
+
+    fireEvent.click(screen.getByTestId('hud-lobby-button'))
+
+    expect(onBackToLobby).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not render an empty combo text bubble for x1 chains', () => {
+    const store = createGameStore({
+      config: buildConfig([
+        cube({ id: 'blue-a', color: 'blue', x: 0, y: 0, z: 0 }),
+        cube({ id: 'blue-b', color: 'blue', x: 1, y: 0, z: 0 }),
+        cube({ id: 'red-a', color: 'red', x: 2, y: 0, z: 0 })
+      ])
+    })
+
+    store.getState().selectCube('blue-a')
+    store.getState().commitBoardAction('blue-b')
+
+    renderWithGameProviders({ store })
+
+    const comboCallout = screen.getByTestId('hud-combo-callout')
+
+    expect(comboCallout).toHaveTextContent('x1')
+    expect(comboCallout.querySelector('.hud__combo-text')).toBeNull()
   })
 
   it('renders combo callout text in zh-CN without English fallback', () => {
@@ -188,7 +214,10 @@ describe('HUD', () => {
 
     renderWithGameProviders({ store, locale: 'zh-CN' })
 
-    expect(screen.getByText('x2 不错！')).toBeInTheDocument()
+    const comboCallout = screen.getByTestId('hud-combo-callout')
+
+    expect(comboCallout).toHaveTextContent('x2')
+    expect(comboCallout).toHaveTextContent('不错！')
     expect(screen.queryByText('Nice!')).not.toBeInTheDocument()
   })
 
@@ -196,10 +225,35 @@ describe('HUD', () => {
     renderWithGameProviders()
 
     const overlay = document.getElementById('ui-overlay')
-    const topRow = overlay?.children.item(0)
-    const bottomRow = overlay?.children.item(1)
+    const topRow = overlay?.querySelector('.hud__stat-bar')
+    const bottomRow = overlay?.querySelector('.hud__bottom-row')
 
-    expect(topRow).toHaveStyle({ flexWrap: 'wrap' })
-    expect(bottomRow).toHaveStyle({ flexWrap: 'wrap' })
+    expect(topRow).toHaveStyle({ justifyContent: 'center' })
+    expect(bottomRow).toHaveStyle({ justifyContent: 'flex-end' })
+  })
+
+  it('renders the lobby control as a compact top-corner icon button', () => {
+    renderWithGameProviders()
+
+    const lobbyButton = screen.getByTestId('hud-lobby-button')
+
+    expect(lobbyButton).toHaveAccessibleName('Lobby')
+    expect(lobbyButton).toHaveTextContent('⌂')
+  })
+
+  it('shows a crisis vignette when the board occupancy gets high', () => {
+    const denseBoard = Array.from({ length: 19 }, (_, index) => cube({
+      id: `cube-${index}`,
+      color: index % 3 === 0 ? 'red' : index % 3 === 1 ? 'blue' : 'yellow',
+      x: index % 3,
+      y: Math.floor(index / 3) % 3,
+      z: Math.floor(index / 9)
+    }))
+
+    const store = createGameStore({ config: buildConfig(denseBoard, 1) })
+
+    renderWithGameProviders({ store })
+
+    expect(screen.getByTestId('hud-crisis-glow')).toBeInTheDocument()
   })
 })

@@ -37,7 +37,6 @@ type TimeoutHandle = ReturnType<typeof setTimeout>
 type CameraState = {
   yaw: number
   pitch: number
-  resetVersion: number
 }
 
 type ControlState = {
@@ -99,7 +98,6 @@ export type GameStoreSnapshot = {
   showLayerFromTop: (index: number) => void
   showScreenColumn: (index: number) => void
   resetSliceView: () => void
-  resetView: () => void
   updateCameraAngles: (yaw: number, pitch: number) => void
   selectCube: (cubeId: string) => void
   commitBoardAction: (targetId: string) => void
@@ -125,8 +123,6 @@ export type CreateGameStoreOptions = {
 }
 
 const MERGE_DURATION_MS = 240
-const CAMERA_RESET_PITCH = Math.PI / 2
-
 export const GameStoreContext = createContext<GameStore | null>(null)
 
 function cloneCube(cube: CubeData): CubeData {
@@ -160,6 +156,10 @@ function cloneConfig(config: PlayableDemoConfig): PlayableDemoConfig {
   }
 }
 
+function isSelectableCube(cube: CubeData): boolean {
+  return cube.color === 'blue' || cube.color === 'yellow'
+}
+
 function createInitialData(config: PlayableDemoConfig): GameStoreData {
   return {
     cubes: config.board.cubes.map(cloneCube),
@@ -176,14 +176,17 @@ function createInitialData(config: PlayableDemoConfig): GameStoreData {
     mergeAnimation: null,
     slice: { axis: null, index: -1 },
     controls: { xSelection: -1, ySelection: -1 },
-    camera: { yaw: 0, pitch: CAMERA_RESET_PITCH, resetVersion: 0 }
+    camera: { yaw: 0, pitch: Math.PI / 2 }
   }
 }
 
 export function createGameStore(options: CreateGameStoreOptions = {}): GameStore {
   const config = cloneConfig(getValidatedPlayableDemoConfig(options.config))
   const now = options.now ?? (() => Date.now())
-  const timers = options.timers ?? { setTimeout, clearTimeout }
+  const timers = options.timers ?? {
+    setTimeout: (handler, timeout) => globalThis.setTimeout(handler, timeout),
+    clearTimeout: (handle) => globalThis.clearTimeout(handle)
+  }
   const listeners = new Set<() => void>()
   let data = createInitialData(config)
   let comboTimer: TimeoutHandle | null = null
@@ -205,9 +208,9 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
       return selectedTargets.length > 0 && visibleSelectedTargets.length === 0
     }
 
-    const visibleBlueIds = data.cubes.filter((cube) => cube.color === 'blue' && isCubeVisible(cube, data.slice)).map((cube) => cube.id)
-    const hasAnyLegalMove = data.cubes.some((cube) => cube.color === 'blue' && getValidTargets(data.cubes, cube.id).length > 0)
-    const hasVisibleLegalMove = visibleBlueIds.some((cubeId) => getVisibleValidTargets(data.cubes, cubeId, data.slice).length > 0)
+    const visibleSelectableIds = data.cubes.filter((cube) => isSelectableCube(cube) && isCubeVisible(cube, data.slice)).map((cube) => cube.id)
+    const hasAnyLegalMove = data.cubes.some((cube) => isSelectableCube(cube) && getValidTargets(data.cubes, cube.id).length > 0)
+    const hasVisibleLegalMove = visibleSelectableIds.some((cubeId) => getVisibleValidTargets(data.cubes, cubeId, data.slice).length > 0)
     return hasAnyLegalMove && !hasVisibleLegalMove
   }
 
@@ -349,7 +352,7 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
     }
 
     const cube = data.cubes.find((item) => item.id === cubeId)
-    if (!cube || cube.color !== 'blue' || !isCubeVisible(cube, data.slice)) {
+    if (!cube || !isSelectableCube(cube) || !isCubeVisible(cube, data.slice)) {
       return
     }
 
@@ -379,15 +382,16 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
       return
     }
 
+    const selectedCube = data.cubes.find((item) => item.id === data.selectedCubeId)
     const target = data.cubes.find((item) => item.id === targetId)
-    if (!target) {
+    if (!selectedCube || !target) {
       return
     }
 
     const result = resolveBoardAction(
       data.cubes,
       {
-        type: target.color === 'blue' ? 'merge' : 'devour',
+        type: target.color === selectedCube.color ? 'merge' : 'devour',
         sourceId: data.selectedCubeId,
         targetId
       },
@@ -561,17 +565,6 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
     emit()
   }
 
-  const resetView = () => {
-    resetSliceView()
-    data.camera = {
-      ...data.camera,
-      yaw: 0,
-      pitch: CAMERA_RESET_PITCH,
-      resetVersion: data.camera.resetVersion + 1
-    }
-    emit()
-  }
-
   const updateCameraAngles = (yaw: number, pitch: number) => {
     data.camera = { ...data.camera, yaw, pitch }
     emit()
@@ -590,7 +583,20 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
       return
     }
 
-    if (cube.color === 'blue') {
+    if (data.runState === 'selected' && data.selectedCubeId) {
+      if (cubeId === data.selectedCubeId) {
+        selectCube(cubeId)
+        return
+      }
+
+      const visibleTargetIds = getDerived(data.selectedCubeId).validTargetIds
+      if (visibleTargetIds.includes(cubeId)) {
+        commitBoardAction(cubeId)
+        return
+      }
+    }
+
+    if (isSelectableCube(cube)) {
       selectCube(cubeId)
       return
     }
@@ -658,7 +664,6 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
       showLayerFromTop,
       showScreenColumn,
       resetSliceView,
-      resetView,
       updateCameraAngles,
       selectCube,
       commitBoardAction,

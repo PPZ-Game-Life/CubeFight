@@ -31,11 +31,13 @@ afterEach(() => {
 
 describe('SliceControls', () => {
   it.each([
-    ['en', 'Layer', 'Column', 'ALL', 'Reset View'],
-    ['zh-CN', '层', '列', 'ALL', '重置视角']
-  ] as const)('renders localized slice panels for %s', (locale, layerLabel, columnLabel, allLabel, resetLabel) => {
+    ['en', 'Layer', 'Column', 'ALL'],
+    ['zh-CN', '层', '列', 'ALL']
+  ] as const)('renders localized slice panels for %s', (locale, layerLabel, columnLabel, allLabel) => {
     renderWithProviders({ locale })
 
+    expect(screen.getByTestId('slice-controls-root')).toBeInTheDocument()
+    expect(screen.getByTestId('slice-controls-cluster')).toBeInTheDocument()
     const layerPanel = screen.getByRole('region', { name: layerLabel })
     const columnPanel = screen.getByRole('region', { name: columnLabel })
 
@@ -43,7 +45,6 @@ describe('SliceControls', () => {
     expect(columnPanel).toHaveClass('slice-controls__panel')
     expect(within(layerPanel).getByRole('button', { name: allLabel })).toBeInTheDocument()
     expect(within(columnPanel).getByRole('button', { name: allLabel })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: resetLabel })).toBeInTheDocument()
   })
 
   it('disables slice controls when an overlay is active', () => {
@@ -65,13 +66,11 @@ describe('SliceControls', () => {
     const showLayerFromTop = vi.fn()
     const showScreenColumn = vi.fn()
     const resetSliceView = vi.fn()
-    const resetView = vi.fn()
 
     Object.assign(snapshot, {
       showLayerFromTop,
       showScreenColumn,
-      resetSliceView,
-      resetView
+      resetSliceView
     })
 
     renderWithProviders({ store })
@@ -82,11 +81,17 @@ describe('SliceControls', () => {
     fireEvent.click(within(layerPanel).getByRole('button', { name: '2' }))
     fireEvent.click(within(columnPanel).getByRole('button', { name: '1' }))
     fireEvent.click(within(layerPanel).getByRole('button', { name: 'ALL' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Reset View' }))
+    fireEvent.click(within(columnPanel).getByRole('button', { name: 'ALL' }))
 
     expect(showLayerFromTop).toHaveBeenCalledWith(2)
     expect(showScreenColumn).toHaveBeenCalledWith(1)
-    expect(resetSliceView).toHaveBeenCalledTimes(1)
-    expect(resetView).toHaveBeenCalledTimes(1)
+    expect(resetSliceView).toHaveBeenCalledTimes(2)
+  })
+
+  it('separates layer rail and column rail for the revamped layout', () => {
+    renderWithProviders()
+
+    expect(screen.getByTestId('slice-layer-rail')).toBeInTheDocument()
+    expect(screen.getByTestId('slice-column-rail')).toBeInTheDocument()
   })
 })

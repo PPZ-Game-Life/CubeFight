@@ -449,7 +449,7 @@ class CubePool {
 - `winLoss.requireNoMovesForGameOver`: 当前定版为 `true`。
 - `winLoss.requireNoBombsForGameOver`: 当前定版为 `true`。
 - `ui.showCombo`: 控制 HUD 是否显示 Combo 面板；当前定版为 `true`。
-- `ui.showPause`: 控制 HUD 是否显示 Pause 按钮；当前定版为 `true`。
+- `ui.showPause`: 保留配置字段做兼容，但当前 HUD 改版默认忽略，不再渲染 Pause 按钮。
 - `ui.sliceLayout`: 当前只允许 `current-implementation`，即顶部/右侧层切与底部列切的现有布局与映射规则。
 
 #### 9.6.3 胜利 / 失败条件
@@ -469,26 +469,25 @@ class CubePool {
 
 #### 9.6.5 Pause / Resume 行为
 
-- `Pause` 仅允许在 `idle`、`selected`、`targeting_bomb` 三种可交互状态触发；`resolving`、`victory`、`game_over` 期间不可暂停。
-- 暂停时会记录恢复目标状态：空闲态恢复为 `idle`，已选中蓝块恢复为 `selected`，炸弹瞄准恢复为 `targeting_bomb`。
-- 暂停时会冻结 Combo 剩余时间；恢复后继续沿用未耗尽的剩余计时，而不是重置 Combo 窗口。
-- 暂停遮罩出现后，HUD 主操作、切片控件与棋盘点击全部不可用；`Resume` 恢复交互，`Restart` 直接回到作者配置初始盘面。
-- 若暂停前的选中蓝块因切片变化不再可见，恢复流程会安全降级回 `idle`，不会保留失效选择。
+- 局内主 HUD 自 `2026-03-21` 起移除显式 `Pause` 按钮，避免顶部信息层与核心棋盘争抢注意力；常规流程依赖失焦暂停或宿主级暂停入口。
+- 底层 `paused` / `pause` 状态机暂不删除，保留给失焦、平台事件或后续独立暂停入口复用；但本轮 HUD 改版不再把它作为默认可见功能。
+- 若后续恢复手动暂停入口，仍需沿用原有行为约束：仅允许在 `idle`、`selected`、`targeting_bomb` 触发；暂停时冻结 Combo 剩余时间；恢复时回到记录的可交互目标状态。
+- HUD 不再负责 `pause` 弹层；局内 Overlay 当前只承接 `victory / game_over` 两类终局结算面板。
 
 #### 9.6.6 手工验收预期（实现记录）
 
 本轮实现完成后，桌面端 / 移动端、中文 / 英文均按以下预期验收：
 
-- Desktop + `en`: HUD 顶部显示 `Score / Combo / Coins / Pause`，底部显示 `Hint / Bombs`；暂停、胜利、失败遮罩标题与按钮均为英文。
-- Desktop + `zh-CN`: HUD 与状态提示、Combo 叫号、暂停/胜负弹层按钮全部为中文，不允许回退英文文案。
-- Mobile + `en`: HUD 顶/底行允许换行，切片按钮与炸弹按钮保持可点击；暂停遮罩出现时不遮挡恢复/重开主按钮；竖屏下可完成选块、切片、炸弹、暂停全流程。
+- Desktop + `en`: HUD 顶部显示 `Score / Combo / Coins` 的轻量悬浮统计条，底部显示 `Hint / Bombs`；右侧为 Layer rail，底部中侧为 Column rail；终局只出现 `Victory / Game Over` Overlay。
+- Desktop + `zh-CN`: HUD 结构与英文一致；顶部不再显示 `Pause`；积分/状态提示/炸弹/胜负弹层按钮全部为中文，不允许回退英文文案。
+- Mobile + `en`: HUD 顶/底行允许换行；切片 rail 与炸弹坞站保持可点击；竖屏下可完成选块、切片、炸弹全流程。
 - Mobile + `zh-CN`: 与英文版保持相同交互能力；中文文案在窄屏下不应溢出关键按钮或导致主要 HUD 信息不可读。
 - Both locales: 切片切换后若合法目标被隐藏，状态提示应明确提示调整切片；炸弹模式只提示可见红/黄目标；合成结算时显示 resolving 文案；胜利/失败后只保留 Restart。
 
 #### 9.6.7 实施收口备注
 
-- 本次试玩版 HUD / 状态提示 / 切片控件 / 结算遮罩 文案已定版。
-- 请 `@主策划 樊老师` 将本次定版后的炸弹、Combo、胜利/失败文案同步回写到 `Doc/GameDesign/`，确保设计文档与实现口径一致。
+- 本次试玩版 HUD / 状态提示 / 切片控件 / 结算遮罩 的结构基线已更新为“顶部统计条 + 底部 Hint/Bomb + 右侧 Layer rail + 底部 Column rail”。
+- 请 `@主策划 樊老师` 将本次去除局内 Pause 按钮、保留终局 Overlay、以及切片控件归属更新同步回写到 `Doc/GameDesign/`，确保设计文档与实现口径一致。
 
 ---
 
