@@ -184,6 +184,7 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
   let data = createInitialData(config)
   let comboTimer: TimeoutHandle | null = null
   let resolutionTimer: TimeoutHandle | null = null
+  let cachedSnapshot: GameStoreSnapshot | null = null
 
   const getDerived = (selectedCubeId = data.selectedCubeId) => {
     const visibleCubes = data.cubes.filter((cube) => isCubeVisible(cube, data.slice))
@@ -263,6 +264,7 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
   }
 
   const emit = () => {
+    cachedSnapshot = null
     listeners.forEach((listener) => listener())
   }
 
@@ -276,17 +278,17 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
     return nextCombo.comboCount
   }
 
-  const getComboMultiplier = () => {
+  const getComboMultiplier = (comboCount = data.comboCount) => {
     const table = config.combo.multiplierTable
-    const index = Math.max(0, Math.min(data.comboCount, table.length) - 1)
+    const index = Math.max(0, Math.min(comboCount, table.length) - 1)
     return table[index] ?? 1
   }
 
-  const finalizeMerge = (resolvedCubes: CubeData[], baseScore: number) => {
+  const finalizeMerge = (resolvedCubes: CubeData[], awardedScore: number) => {
     data.cubes = resolvedCubes.map(cloneCube)
     data.selectedCubeId = null
     data.mergeAnimation = null
-    data.score += baseScore * getComboMultiplier()
+    data.score += awardedScore
     syncInteractiveFlow()
     resolutionTimer = null
     emit()
@@ -355,7 +357,8 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
       return
     }
 
-    applyComboProgress()
+    const comboCount = applyComboProgress()
+    const awardedScore = result.baseScore * getComboMultiplier(comboCount)
 
     if (result.kind === 'merge') {
       clearResolutionTimer()
@@ -375,13 +378,13 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
         sourceColor: 'blue'
       }
       data.statusHintKey = 'resolving'
-      resolutionTimer = timers.setTimeout(() => finalizeMerge(result.cubes, result.baseScore), MERGE_DURATION_MS)
+      resolutionTimer = timers.setTimeout(() => finalizeMerge(result.cubes, awardedScore), MERGE_DURATION_MS)
       emit()
       return
     }
 
     data.cubes = result.cubes.map(cloneCube)
-    data.score += result.baseScore * getComboMultiplier()
+    data.score += awardedScore
     if (result.kind === 'devour_yellow') {
       data.coins += result.consumedLevel
     }
@@ -537,8 +540,12 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
   }
 
   const getSnapshot = (): GameStoreSnapshot => {
+    if (cachedSnapshot) {
+      return cachedSnapshot
+    }
+
     const derived = getDerived()
-    return {
+    cachedSnapshot = {
       cubes: data.cubes,
       visibleCubes: derived.visibleCubes,
       selectedCubeId: data.selectedCubeId,
@@ -576,6 +583,8 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
       clickCube,
       clearSelection
     }
+
+    return cachedSnapshot
   }
 
   syncInteractiveFlow()

@@ -94,6 +94,29 @@ function createNoMoveStore() {
   })
 }
 
+function createPauseReadyStore() {
+  const store = createTestStore()
+  store.getState().selectCube('blue-a')
+  return store
+}
+
+function createBombReadyStore() {
+  return createGameStore({
+    config: createStoreConfig([
+      cube({ id: 'blue-a', color: 'blue', level: 1, x: 0, y: 0, z: 0 }),
+      cube({ id: 'red-a', color: 'red', level: 1, x: 1, y: 0, z: 0 }),
+      cube({ id: 'yellow-a', color: 'yellow', level: 1, x: 0, y: 1, z: 0 })
+    ])
+  })
+}
+
+function createRestartableStore() {
+  const store = createBombReadyStore()
+  store.getState().activateBomb()
+  store.getState().clickCube('red-a')
+  return store
+}
+
 describe('gameStore selection states', () => {
   it('moves from idle to selected when selecting a blue cube', () => {
     const store = createTestStore()
@@ -194,5 +217,121 @@ describe('gameStore test helpers', () => {
     expect(store.getState().overlay).toBe('game_over')
     expect(store.getState().matchResult).toEqual({ kind: 'game_over' })
     expect(store.getState().statusHintKey).toBe('game_over')
+  })
+})
+
+describe('gameStore public actions', () => {
+  it('returns the same snapshot reference when state has not changed', () => {
+    const store = createTestStore()
+
+    const firstSnapshot = store.getState()
+    const secondSnapshot = store.getState()
+
+    expect(secondSnapshot).toBe(firstSnapshot)
+  })
+
+  it('pauseGame exposes a pause overlay and preserves the resume target state', () => {
+    const store = createPauseReadyStore()
+
+    store.getState().pauseGame()
+
+    expect(store.getState().runState).toBe('paused')
+    expect(store.getState().overlay).toBe('pause')
+    expect(store.getState().resumeTargetState).toBe('selected')
+    expect(store.getState().statusHintKey).toBe('paused')
+  })
+
+  it('resumeGame restores the selected run state after pausing', () => {
+    const store = createPauseReadyStore()
+
+    store.getState().pauseGame()
+    store.getState().resumeGame()
+
+    expect(store.getState().runState).toBe('selected')
+    expect(store.getState().overlay).toBe('none')
+    expect(store.getState().resumeTargetState).toBeNull()
+    expect(store.getState().selectedCubeId).toBe('blue-a')
+  })
+
+  it('activateBomb clears selection and exposes bomb targets', () => {
+    const store = createPauseReadyStore()
+
+    store.getState().activateBomb()
+
+    expect(store.getState().runState).toBe('targeting_bomb')
+    expect(store.getState().selectedCubeId).toBeNull()
+    expect(store.getState().bombTargetIds).toEqual(['red-a', 'yellow-a'])
+    expect(store.getState().statusHintKey).toBe('choose_bomb_target')
+  })
+
+  it('cancelTargeting returns bomb targeting back to idle', () => {
+    const store = createBombReadyStore()
+
+    store.getState().activateBomb()
+    store.getState().cancelTargeting()
+
+    expect(store.getState().runState).toBe('idle')
+    expect(store.getState().overlay).toBe('none')
+    expect(store.getState().selectedCubeId).toBeNull()
+    expect(store.getState().statusHintKey).toBe('select_blue_cube')
+  })
+
+  it('restartDemo restores the authored starting state after mutations', () => {
+    const store = createRestartableStore()
+
+    store.getState().restartDemo()
+
+    expect(store.getState().runState).toBe('idle')
+    expect(store.getState().bombCount).toBe(1)
+    expect(store.getState().score).toBe(0)
+    expect(store.getState().selectedCubeId).toBeNull()
+    expect(store.getState().cubes.map((item: CubeData) => item.id)).toEqual(['blue-a', 'red-a', 'yellow-a'])
+  })
+
+  it('expires combo state after the configured timeout', () => {
+    vi.useFakeTimers()
+
+    const store = createBombReadyStore()
+
+    store.getState().selectCube('blue-a')
+    store.getState().commitBoardAction('red-a')
+
+    expect(store.getState().comboCount).toBe(1)
+
+    vi.advanceTimersByTime(buildPlayableDemoConfig().combo.timeoutMs)
+
+    expect(store.getState().comboCount).toBe(0)
+    expect(store.getState().comboText).toBeNull()
+
+    vi.useRealTimers()
+  })
+
+  it('keeps merge scoring tied to the combo count captured at commit time', () => {
+    vi.useFakeTimers()
+
+    const config = createStoreConfig([
+      cube({ id: 'blue-a', color: 'blue', level: 1, x: 0, y: 0, z: 0 }),
+      cube({ id: 'blue-b', color: 'blue', level: 1, x: 1, y: 0, z: 1 }),
+      cube({ id: 'red-a', color: 'red', level: 1, x: 0, y: 0, z: 1 }),
+      cube({ id: 'red-b', color: 'red', level: 1, x: 2, y: 2, z: 2 })
+    ])
+    config.combo.timeoutMs = 100
+    config.combo.multiplierTable = [1, 2]
+
+    const store = createGameStore({ config })
+
+    store.getState().selectCube('blue-a')
+    store.getState().commitBoardAction('red-a')
+    store.getState().selectCube('blue-a')
+    store.getState().commitBoardAction('blue-b')
+
+    vi.advanceTimersByTime(100)
+    expect(store.getState().comboCount).toBe(0)
+
+    vi.advanceTimersByTime(140)
+
+    expect(store.getState().score).toBe(70)
+
+    vi.useRealTimers()
   })
 })
