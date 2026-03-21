@@ -9,6 +9,7 @@ import type {
   MatchResult,
   MergeAnimationState,
   PlayableDemoConfig,
+  PlayableDemoUiConfig,
   ResumeTargetState,
   SliceState,
   StatusHintKey
@@ -91,6 +92,7 @@ export type GameStoreSnapshot = {
   overlay: GameOverlay
   statusHintKey: StatusHintKey | null
   matchResult: MatchResult
+  ui: PlayableDemoUiConfig
   validTargetIds: string[]
   bombTargetIds: string[]
   getCubeVisualState: (cubeId: string) => VisualState
@@ -125,7 +127,7 @@ export type CreateGameStoreOptions = {
 const MERGE_DURATION_MS = 240
 const CAMERA_RESET_PITCH = Math.PI / 2
 
-const GameStoreContext = createContext<GameStore | null>(null)
+export const GameStoreContext = createContext<GameStore | null>(null)
 
 function cloneCube(cube: CubeData): CubeData {
   return { ...cube }
@@ -649,6 +651,7 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
       overlay: data.overlay,
       statusHintKey: data.statusHintKey,
       matchResult: data.matchResult,
+      ui: config.ui,
       validTargetIds: derived.validTargetIds,
       bombTargetIds: derived.bombTargetIds,
       getCubeVisualState,
