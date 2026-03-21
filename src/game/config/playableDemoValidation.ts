@@ -62,8 +62,46 @@ function collectMergeResultLevels(cubes: CubeData[]): number[] {
   return [...levels].sort((a, b) => a - b)
 }
 
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value)
+}
+
+function isPositiveFiniteNumber(value: unknown): value is number {
+  return isFiniteNumber(value) && value > 0
+}
+
+function isNonNegativeFiniteNumber(value: unknown): value is number {
+  return isFiniteNumber(value) && value >= 0
+}
+
+function isPositiveInteger(value: unknown): value is number {
+  return Number.isInteger(value) && Number(value) > 0
+}
+
+function isNonNegativeInteger(value: unknown): value is number {
+  return Number.isInteger(value) && Number(value) >= 0
+}
+
 function hasScoreForLevel(table: unknown, level: number): boolean {
-  return isRecord(table) && typeof table[level] === 'number'
+  return isRecord(table) && isNonNegativeFiniteNumber(table[level])
+}
+
+function validateScoreTableValues(
+  table: unknown,
+  tableName: string,
+  errors: PlayableDemoConfigError[]
+) {
+  if (!isRecord(table)) {
+    return
+  }
+
+  for (const [level, value] of Object.entries(table)) {
+    if (!isNonNegativeFiniteNumber(value)) {
+      errors.push(new PlayableDemoConfigError(
+        `Playable demo config requires ${tableName} level ${level} to be a finite non-negative number.`
+      ))
+    }
+  }
 }
 
 export function validatePlayableDemoConfig(config: unknown): PlayableDemoConfigError[] {
@@ -85,6 +123,8 @@ export function validatePlayableDemoConfig(config: unknown): PlayableDemoConfigE
 
   if (gridSize === null) {
     errors.push(new PlayableDemoConfigError('Playable demo config requires board.gridSize.'))
+  } else if (!isPositiveInteger(gridSize)) {
+    errors.push(new PlayableDemoConfigError('Playable demo config requires board.gridSize to be a positive integer.'))
   }
 
   if (!Array.isArray(board?.cubes)) {
@@ -102,14 +142,26 @@ export function validatePlayableDemoConfig(config: unknown): PlayableDemoConfigE
 
   if (typeof inventory?.bombCount !== 'number') {
     errors.push(new PlayableDemoConfigError('Playable demo config requires inventory.bombCount.'))
+  } else if (!isNonNegativeInteger(inventory.bombCount)) {
+    errors.push(new PlayableDemoConfigError('Playable demo config requires inventory.bombCount to be a non-negative integer.'))
   }
 
   if (typeof combo?.timeoutMs !== 'number') {
     errors.push(new PlayableDemoConfigError('Playable demo config requires combo.timeoutMs.'))
+  } else if (!isPositiveFiniteNumber(combo.timeoutMs)) {
+    errors.push(new PlayableDemoConfigError('Playable demo config requires combo.timeoutMs to be a positive finite number.'))
   }
 
   if (!Array.isArray(combo?.multiplierTable) || combo.multiplierTable.length === 0) {
     errors.push(new PlayableDemoConfigError('Playable demo config requires a non-empty combo multiplier table.'))
+  } else {
+    for (const [index, value] of combo.multiplierTable.entries()) {
+      if (!isPositiveFiniteNumber(value)) {
+        errors.push(new PlayableDemoConfigError(
+          `Playable demo config requires combo multiplier at index ${index} to be a positive finite number.`
+        ))
+      }
+    }
   }
 
   if (!scoring) {
@@ -127,6 +179,10 @@ export function validatePlayableDemoConfig(config: unknown): PlayableDemoConfigE
   if (!isRecord(scoring?.devourYellowBase)) {
     errors.push(new PlayableDemoConfigError('Playable demo config requires scoring.devourYellowBase.'))
   }
+
+  validateScoreTableValues(scoring?.mergeBase, 'scoring.mergeBase', errors)
+  validateScoreTableValues(scoring?.devourRedBase, 'scoring.devourRedBase', errors)
+  validateScoreTableValues(scoring?.devourYellowBase, 'scoring.devourYellowBase', errors)
 
   if (winLoss?.victory !== 'clear_all_red') {
     errors.push(new PlayableDemoConfigError('Playable demo config requires winLoss.victory to be clear_all_red.'))
@@ -152,7 +208,7 @@ export function validatePlayableDemoConfig(config: unknown): PlayableDemoConfigE
     errors.push(new PlayableDemoConfigError('Playable demo config requires ui.sliceLayout to be current-implementation.'))
   }
 
-  if (gridSize !== null) {
+  if (isPositiveInteger(gridSize)) {
     const seenIds = new Set<string>()
     const occupiedCells = new Set<string>()
 

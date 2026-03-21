@@ -136,6 +136,52 @@ describe('playable demo config validation', () => {
     expect(errors).toContainEqual(expect.stringMatching(/ui\.showPause/i))
   })
 
+  it('rejects a config with a non-positive board.gridSize', () => {
+    const config = buildPlayableDemoConfig()
+
+    config.board.gridSize = 0
+
+    expect(getErrorMessages(config)).toContainEqual(expect.stringMatching(/board\.gridSize.*positive integer/i))
+  })
+
+  it('rejects a config with an invalid inventory.bombCount number', () => {
+    const config = buildPlayableDemoConfig()
+
+    config.inventory.bombCount = Number.NaN
+
+    expect(getErrorMessages(config)).toContainEqual(expect.stringMatching(/inventory\.bombCount.*non-negative integer/i))
+  })
+
+  it('rejects a config with a non-positive combo timeout', () => {
+    const config = buildPlayableDemoConfig()
+
+    config.combo.timeoutMs = -1
+
+    expect(getErrorMessages(config)).toContainEqual(expect.stringMatching(/combo\.timeoutMs.*positive finite number/i))
+  })
+
+  it('rejects a config with invalid combo multipliers', () => {
+    const config = buildPlayableDemoConfig()
+
+    config.combo.multiplierTable[1] = 0
+
+    expect(getErrorMessages(config)).toContainEqual(expect.stringMatching(/combo multiplier.*index 1.*positive finite number/i))
+  })
+
+  it('rejects a config with invalid scoring table values', () => {
+    const config = buildPlayableDemoConfig()
+
+    config.scoring.mergeBase[2] = Number.POSITIVE_INFINITY
+    config.scoring.devourRedBase[1] = -10
+    config.scoring.devourYellowBase[1] = Number.NaN
+
+    const errors = getErrorMessages(config)
+
+    expect(errors).toContainEqual(expect.stringMatching(/scoring\.mergeBase.*level 2.*finite non-negative number/i))
+    expect(errors).toContainEqual(expect.stringMatching(/scoring\.devourRedBase.*level 1.*finite non-negative number/i))
+    expect(errors).toContainEqual(expect.stringMatching(/scoring\.devourYellowBase.*level 1.*finite non-negative number/i))
+  })
+
   it('assertPlayableDemoConfig throws PlayableDemoConfigError for invalid config', () => {
     expect(() => assertPlayableDemoConfig(buildDuplicateIdConfig())).toThrow(PlayableDemoConfigError)
   })
