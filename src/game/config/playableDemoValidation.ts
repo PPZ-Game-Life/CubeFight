@@ -74,6 +74,7 @@ export function validatePlayableDemoConfig(config: unknown): PlayableDemoConfigE
   }
 
   const board = isRecord(config.board) ? config.board : null
+  const inventory = isRecord(config.inventory) ? config.inventory : null
   const combo = isRecord(config.combo) ? config.combo : null
   const scoring = isRecord(config.scoring) ? config.scoring : null
   const winLoss = isRecord(config.winLoss) ? config.winLoss : null
@@ -99,6 +100,14 @@ export function validatePlayableDemoConfig(config: unknown): PlayableDemoConfigE
     }
   }
 
+  if (typeof inventory?.bombCount !== 'number') {
+    errors.push(new PlayableDemoConfigError('Playable demo config requires inventory.bombCount.'))
+  }
+
+  if (typeof combo?.timeoutMs !== 'number') {
+    errors.push(new PlayableDemoConfigError('Playable demo config requires combo.timeoutMs.'))
+  }
+
   if (!Array.isArray(combo?.multiplierTable) || combo.multiplierTable.length === 0) {
     errors.push(new PlayableDemoConfigError('Playable demo config requires a non-empty combo multiplier table.'))
   }
@@ -121,6 +130,22 @@ export function validatePlayableDemoConfig(config: unknown): PlayableDemoConfigE
 
   if (winLoss?.victory !== 'clear_all_red') {
     errors.push(new PlayableDemoConfigError('Playable demo config requires winLoss.victory to be clear_all_red.'))
+  }
+
+  if (winLoss?.requireNoMovesForGameOver !== true) {
+    errors.push(new PlayableDemoConfigError('Playable demo config requires winLoss.requireNoMovesForGameOver to be true.'))
+  }
+
+  if (winLoss?.requireNoBombsForGameOver !== true) {
+    errors.push(new PlayableDemoConfigError('Playable demo config requires winLoss.requireNoBombsForGameOver to be true.'))
+  }
+
+  if (typeof ui?.showCombo !== 'boolean') {
+    errors.push(new PlayableDemoConfigError('Playable demo config requires ui.showCombo.'))
+  }
+
+  if (typeof ui?.showPause !== 'boolean') {
+    errors.push(new PlayableDemoConfigError('Playable demo config requires ui.showPause.'))
   }
 
   if (ui?.sliceLayout !== 'current-implementation') {

@@ -104,6 +104,38 @@ describe('playable demo config validation', () => {
     expect(getErrorMessages(config)).toContainEqual(expect.stringMatching(/mergeBase/i))
   })
 
+  it('rejects a config with missing inventory.bombCount', () => {
+    const config = buildPlayableDemoConfig() as PlayableDemoConfig
+
+    delete (config as { inventory: { bombCount?: unknown } }).inventory.bombCount
+
+    expect(getErrorMessages(config)).toContainEqual(expect.stringMatching(/inventory\.bombCount/i))
+  })
+
+  it('rejects a config with missing combo.timeoutMs', () => {
+    const config = buildPlayableDemoConfig() as PlayableDemoConfig
+
+    delete (config as { combo: { timeoutMs?: unknown } }).combo.timeoutMs
+
+    expect(getErrorMessages(config)).toContainEqual(expect.stringMatching(/combo\.timeoutMs/i))
+  })
+
+  it('rejects a config with incomplete win-loss and ui contracts', () => {
+    const config = buildPlayableDemoConfig() as PlayableDemoConfig
+
+    delete (config as { winLoss: { requireNoMovesForGameOver?: unknown } }).winLoss.requireNoMovesForGameOver
+    delete (config as { winLoss: { requireNoBombsForGameOver?: unknown } }).winLoss.requireNoBombsForGameOver
+    delete (config as { ui: { showCombo?: unknown } }).ui.showCombo
+    delete (config as { ui: { showPause?: unknown } }).ui.showPause
+
+    const errors = getErrorMessages(config)
+
+    expect(errors).toContainEqual(expect.stringMatching(/requireNoMovesForGameOver/i))
+    expect(errors).toContainEqual(expect.stringMatching(/requireNoBombsForGameOver/i))
+    expect(errors).toContainEqual(expect.stringMatching(/ui\.showCombo/i))
+    expect(errors).toContainEqual(expect.stringMatching(/ui\.showPause/i))
+  })
+
   it('assertPlayableDemoConfig throws PlayableDemoConfigError for invalid config', () => {
     expect(() => assertPlayableDemoConfig(buildDuplicateIdConfig())).toThrow(PlayableDemoConfigError)
   })

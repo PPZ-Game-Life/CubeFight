@@ -713,6 +713,18 @@ describe('gameStore public actions', () => {
     expect(() => createGameStore({ config })).toThrow(PlayableDemoConfigError)
   })
 
+  it('throws PlayableDemoConfigError for incomplete injected configs', () => {
+    const config = createStoreConfig([
+      cube({ id: 'blue-a', color: 'blue', x: 0, y: 0, z: 0 }),
+      cube({ id: 'red-a', color: 'red', x: 1, y: 0, z: 0 })
+    ]) as PlayableDemoConfig
+
+    delete (config as { inventory: { bombCount?: unknown } }).inventory.bombCount
+    delete (config as { combo: { timeoutMs?: unknown } }).combo.timeoutMs
+
+    expect(() => createGameStore({ config })).toThrow(PlayableDemoConfigError)
+  })
+
   it('does not enter game over when a legal move exists off the visible slice', () => {
     const store = createHiddenMoveNoBombStore()
 
