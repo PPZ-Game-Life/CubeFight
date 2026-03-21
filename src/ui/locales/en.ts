@@ -31,11 +31,11 @@ export default {
     statusHints: {
       select_blue_cube: 'Select a blue cube to start your turn.',
       choose_target: 'Choose a valid target for the selected cube.',
-      choose_bomb_target: 'Choose a visible cube to destroy with a bomb.',
-      use_bomb: 'No move here. Use a bomb or change your view.',
-      noBombs: 'No bombs left. Make a board move instead.',
+      choose_bomb_target: 'Choose a visible red or yellow cube to destroy with a bomb.',
+      use_bomb: 'No board move here. Use a bomb or adjust the slice view.',
+      noBombs: 'No bombs left. Make a board move to continue.',
       chooseValidTarget: 'That target is not valid for the selected cube.',
-      movesHiddenByView: 'Legal moves are hidden. Adjust the slice view.',
+      movesHiddenByView: 'Legal moves are hidden by the current slice. Adjust the view.',
       resolving: 'Resolving move...'
     }
   }
