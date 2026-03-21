@@ -347,7 +347,7 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
     }
 
     const cube = data.cubes.find((item) => item.id === cubeId)
-    if (!cube || cube.color !== 'blue') {
+    if (!cube || cube.color !== 'blue' || !isCubeVisible(cube, data.slice)) {
       return
     }
 

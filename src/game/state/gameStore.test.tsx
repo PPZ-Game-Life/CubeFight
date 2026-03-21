@@ -42,7 +42,7 @@ function createHiddenMoveStore() {
     ])
   })
 
-  store.getState().showLayerFromTop(1)
+  store.getState().showScreenColumn(0)
   store.getState().selectCube('blue-a')
 
   return store
@@ -411,6 +411,22 @@ describe('gameStore public actions', () => {
     expect(store.getState().statusHintKey).toBe('choose_target')
   })
 
+  it('rejects selecting a hidden blue cube while a slice is active', () => {
+    const store = createHiddenMoveStore()
+
+    store.getState().selectCube('blue-hidden')
+
+    expect(store.getState().runState).toBe('selected')
+    expect(store.getState().selectedCubeId).toBe('blue-a')
+    expect(store.getState().validTargetIds).toEqual([])
+
+    store.getState().clickCube('blue-hidden')
+
+    expect(store.getState().runState).toBe('selected')
+    expect(store.getState().selectedCubeId).toBe('blue-a')
+    expect(store.getState().validTargetIds).toEqual([])
+  })
+
   it('recomputes bomb targets when the visible slice changes during bomb targeting', () => {
     const store = createSliceAwareStore()
 
@@ -688,7 +704,7 @@ describe('gameStore public actions', () => {
   it('does not enter game over when a legal move exists off the visible slice', () => {
     const store = createHiddenMoveNoBombStore()
 
-    store.getState().showLayerFromTop(1)
+    store.getState().showScreenColumn(0)
     store.getState().selectCube('blue-a')
 
     expect(store.getState().validTargetIds).toEqual([])
@@ -699,7 +715,7 @@ describe('gameStore public actions', () => {
   it('surfaces movesHiddenByView when legal moves exist but none are visible', () => {
     const store = createHiddenMoveNoBombStore()
 
-    store.getState().showLayerFromTop(1)
+    store.getState().showScreenColumn(0)
 
     expect(store.getState().runState).toBe('idle')
     expect(store.getState().matchResult).toEqual({ kind: 'in_progress' })
