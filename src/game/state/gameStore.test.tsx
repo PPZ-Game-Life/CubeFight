@@ -737,6 +737,17 @@ describe('gameStore public actions', () => {
     expect(() => createGameStore({ config })).toThrow(PlayableDemoConfigError)
   })
 
+  it('throws PlayableDemoConfigError for invalid injected cube levels', () => {
+    const config = createStoreConfig([
+      cube({ id: 'blue-a', color: 'blue', x: 0, y: 0, z: 0 }),
+      cube({ id: 'red-a', color: 'red', x: 1, y: 0, z: 0 })
+    ])
+
+    config.board.cubes[0].level = Number.NaN
+
+    expect(() => createGameStore({ config })).toThrow(PlayableDemoConfigError)
+  })
+
   it('does not enter game over when a legal move exists off the visible slice', () => {
     const store = createHiddenMoveNoBombStore()
 

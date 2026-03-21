@@ -136,6 +136,10 @@ export function validatePlayableDemoConfig(config: unknown): PlayableDemoConfigE
         continue
       }
 
+      if (!isPositiveInteger(cube.level)) {
+        errors.push(new PlayableDemoConfigError(`Cube "${cube.id}" level must be a positive integer.`))
+      }
+
       cubes.push(cube)
     }
   }

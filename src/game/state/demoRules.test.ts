@@ -182,6 +182,14 @@ describe('playable demo config validation', () => {
     expect(errors).toContainEqual(expect.stringMatching(/scoring\.devourYellowBase.*level 1.*finite non-negative number/i))
   })
 
+  it('rejects a config with an invalid cube level', () => {
+    const config = buildPlayableDemoConfig()
+
+    config.board.cubes[0].level = 0
+
+    expect(getErrorMessages(config)).toContainEqual(expect.stringMatching(/cube ".*" level must be a positive integer/i))
+  })
+
   it('assertPlayableDemoConfig throws PlayableDemoConfigError for invalid config', () => {
     expect(() => assertPlayableDemoConfig(buildDuplicateIdConfig())).toThrow(PlayableDemoConfigError)
   })
