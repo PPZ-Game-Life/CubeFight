@@ -110,6 +110,22 @@ function createHiddenMoveNoBombStore() {
   })
 }
 
+function createSelectionAwareHiddenMoveStore() {
+  const store = createGameStore({
+    config: createStoreConfig([
+      cube({ id: 'blue-selected', color: 'blue', level: 1, x: 0, y: 2, z: 0 }),
+      cube({ id: 'blue-hidden-target', color: 'blue', level: 1, x: 0, y: 1, z: 0 }),
+      cube({ id: 'blue-visible', color: 'blue', level: 1, x: 2, y: 2, z: 0 }),
+      cube({ id: 'red-visible', color: 'red', level: 1, x: 2, y: 2, z: 1 })
+    ], 0)
+  })
+
+  store.getState().showLayerFromTop(0)
+  store.getState().selectCube('blue-selected')
+
+  return store
+}
+
 function createBombReadyStore() {
   return createGameStore({
     config: createStoreConfig([
@@ -320,6 +336,18 @@ describe('gameStore public actions', () => {
     expect(store.getState().statusHintKey).toBe('chooseValidTarget')
   })
 
+  it('rejects hidden target ids during selected state', () => {
+    const store = createHiddenMoveStore()
+
+    store.getState().commitBoardAction('blue-hidden')
+
+    expect(store.getState().runState).toBe('selected')
+    expect(store.getState().selectedCubeId).toBe('blue-a')
+    expect(store.getState().cubes.map((item: CubeData) => item.id)).toEqual(['blue-a', 'blue-hidden', 'red-visible'])
+    expect(store.getState().score).toBe(0)
+    expect(store.getState().statusHintKey).toBe('chooseValidTarget')
+  })
+
   it('keeps bomb targeting active after an invalid bomb target click', () => {
     const store = createBombReadyStore()
 
@@ -329,6 +357,20 @@ describe('gameStore public actions', () => {
     expect(store.getState().runState).toBe('targeting_bomb')
     expect(store.getState().selectedCubeId).toBeNull()
     expect(store.getState().bombTargetIds).toEqual(['red-a', 'yellow-a'])
+    expect(store.getState().statusHintKey).toBe('choose_bomb_target')
+  })
+
+  it('rejects hidden bomb target ids during bomb targeting', () => {
+    const store = createSliceAwareStore()
+
+    store.getState().showLayerFromTop(0)
+    store.getState().activateBomb()
+    store.getState().clickCube('yellow-mid')
+
+    expect(store.getState().runState).toBe('targeting_bomb')
+    expect(store.getState().bombCount).toBe(1)
+    expect(store.getState().cubes.map((item: CubeData) => item.id)).toEqual(['blue-a', 'red-top', 'yellow-mid'])
+    expect(store.getState().bombTargetIds).toEqual(['red-top'])
     expect(store.getState().statusHintKey).toBe('choose_bomb_target')
   })
 
@@ -663,6 +705,15 @@ describe('gameStore public actions', () => {
     expect(store.getState().matchResult).toEqual({ kind: 'in_progress' })
     expect(store.getState().validTargetIds).toEqual([])
     expect(store.getState().bombTargetIds).toEqual(['red-visible'])
+    expect(store.getState().statusHintKey).toBe('movesHiddenByView')
+  })
+
+  it('surfaces movesHiddenByView for the selected cube even when another visible cube has a visible move', () => {
+    const store = createSelectionAwareHiddenMoveStore()
+
+    expect(store.getState().runState).toBe('selected')
+    expect(store.getState().selectedCubeId).toBe('blue-selected')
+    expect(store.getState().validTargetIds).toEqual([])
     expect(store.getState().statusHintKey).toBe('movesHiddenByView')
   })
 

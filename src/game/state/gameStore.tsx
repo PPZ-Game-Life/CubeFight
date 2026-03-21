@@ -197,6 +197,12 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
   }
 
   const hasHiddenLegalMoves = () => {
+    if (data.selectedCubeId) {
+      const selectedTargets = getValidTargets(data.cubes, data.selectedCubeId)
+      const visibleSelectedTargets = getVisibleValidTargets(data.cubes, data.selectedCubeId, data.slice)
+      return selectedTargets.length > 0 && visibleSelectedTargets.length === 0
+    }
+
     const visibleBlueIds = data.cubes.filter((cube) => cube.color === 'blue' && isCubeVisible(cube, data.slice)).map((cube) => cube.id)
     const hasAnyLegalMove = data.cubes.some((cube) => cube.color === 'blue' && getValidTargets(data.cubes, cube.id).length > 0)
     const hasVisibleLegalMove = visibleBlueIds.some((cubeId) => getVisibleValidTargets(data.cubes, cubeId, data.slice).length > 0)
@@ -314,6 +320,12 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
   }
 
   const commitBombTarget = (targetId: string) => {
+    if (!getDerived().bombTargetIds.includes(targetId)) {
+      applyStatusHint('targeting_bomb')
+      emit()
+      return
+    }
+
     const result = resolveBomb(data.cubes, targetId)
     if (result.kind === 'invalid') {
       applyStatusHint('targeting_bomb')
@@ -356,6 +368,12 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
 
   const commitBoardAction = (targetId: string) => {
     if (data.runState !== 'selected' || !data.selectedCubeId) {
+      return
+    }
+
+    if (!getDerived(data.selectedCubeId).validTargetIds.includes(targetId)) {
+      data.statusHintKey = 'chooseValidTarget'
+      emit()
       return
     }
 
