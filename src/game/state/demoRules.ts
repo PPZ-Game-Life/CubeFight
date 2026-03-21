@@ -1,4 +1,4 @@
-import type { CubeData, PlayableDemoConfig, SliceState } from '../model/types'
+import type { CubeData, MatchResult, PlayableDemoConfig, SliceState } from '../model/types'
 
 export interface MergeBoardAction {
   type: 'merge'
@@ -59,11 +59,6 @@ export interface BombResult {
 }
 
 export type ResolveBombResult = InvalidBombResult | BombResult
-
-export type MatchResult =
-  | { kind: 'victory' }
-  | { kind: 'game_over' }
-  | { kind: 'in_progress' }
 
 function cloneCube(cube: CubeData): CubeData {
   return { ...cube }

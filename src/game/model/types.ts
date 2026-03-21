@@ -6,6 +6,22 @@ export type PlayableDemoVictoryCondition = 'clear_all_red'
 
 export type PlayableDemoSliceLayout = 'current-implementation'
 
+export type GameRunState = 'idle' | 'selected' | 'targeting_bomb' | 'resolving' | 'paused' | 'victory' | 'game_over'
+
+export type ResumeTargetState = 'idle' | 'selected' | 'targeting_bomb' | null
+
+export type GameOverlay = 'none' | 'pause' | 'victory' | 'game_over'
+
+export type StatusHintKey =
+  | 'select_blue_cube'
+  | 'choose_target'
+  | 'choose_bomb_target'
+  | 'use_bomb'
+  | 'paused'
+  | 'resolving'
+  | 'victory'
+  | 'game_over'
+
 export interface CubeData {
   id: string
   color: CubeColor
@@ -62,6 +78,11 @@ export interface PlayableDemoConfig {
   winLoss: PlayableDemoWinLossConfig
   ui: PlayableDemoUiConfig
 }
+
+export type MatchResult =
+  | { kind: 'victory' }
+  | { kind: 'game_over' }
+  | { kind: 'in_progress' }
 
 export interface MergeAnimationState {
   sourceId: string
