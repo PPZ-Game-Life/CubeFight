@@ -513,5 +513,70 @@ class CubePool {
 
 ---
 
-**最后更新**: 2026-03-15 10:00  
-**当前状态**: 重构中,基于设计文档重新实现完整游戏逻辑
+## 11. 主菜单设置扩展（2026-03-22）
+
+### 11.1 设置面板职责收口
+- **入口位置**：主菜单 `Settings` 按钮打开局外设置弹层，不额外切独立场景，避免菜单展示盘面重建与额外性能抖动。
+- **当前承载项**：
+  1. **语言切换**：`zh-CN / en` 双语即时切换；
+  2. **调试模式开关**：开发/测试辅助入口；
+  3. **调试关卡选择**：仅在调试模式开启后显示。
+
+### 11.2 状态归属与持久化
+- **LocaleProvider** 负责浏览器语言探测、本地缓存用户语言选择，并向 UI 树暴露 `locale / setLocale / dictionary`。
+- **CampaignRoot** 负责菜单调试设置持久化（`debugMode`, `debugLevelId`）、正常闯关进度 `campaignLevelId`、以及实际开局关卡 `sessionLevelId` 的装配。
+
+### 11.3 调试模式运行原则
+- **调试模式不污染正常闯关进度**：
+  - 正常进度走 `campaignLevelId`；
+  - 调试启动走 `debugLevelId`；
+  - 实际运行关卡统一落到 `sessionLevelId`。
+- **关卡白名单**：调试下仅暴露当前 runtime 可直接运行的 3x3x3 authored levels，避免误选未来 4x4 内容触发运行时异常。
+- **性能取舍**：调试关卡选择走现有设置弹层 + 原生 `select`，优先稳定、低维护成本，不为开发入口额外堆复杂 3D 时间轴 UI。
+
+### 11.4 UI 数据流
+```text
+MainMenu(Settings Dialog)
+  ├─ locale -> LocaleProvider.setLocale()
+  ├─ debugMode -> CampaignRoot state + localStorage
+  └─ debugLevelId -> CampaignRoot state + localStorage
+
+CampaignRoot.onStart()
+  └─ sessionLevelId = debugMode ? debugLevelId : campaignLevelId
+```
+
+### 11.5 联调备注
+- 本次改动不触碰关卡数值、目标公式与生成规则。
+- 若项目决定把“调试模式入口”作为正式对外可见功能，请 `@主策划 樊老师` 将主菜单设置说明与调试入口可见性策略同步补进 `Doc/GameDesign/`，避免设计稿和实际入口不一致。
+
+### 11.6 关卡配置容错修正（2026-03-22）
+- 线上排查发现 `config/json/levels.json` 中 `Level 02` 的 `gridSize` 被误写为 `2`，与 `LevelConfigSchema.md` 中“仅允许 `3 / 4`”的约束冲突，导致 `parseLevelCatalog()` 在启动阶段直接抛错。
+- 本轮已将 `Level 02` 修正为 `3`；同时解析层与 schema 明确收口为允许 `3 / 4 / 5`，因为 10-30 关的 authored data 已经使用 `5x5x5`。
+- 运行时仍不对非法尺寸做静默兜底；`2` 这类脏数据继续直接报错，避免错误配置被吞掉后进入更隐蔽的运行期问题。
+
+### 11.7 多尺寸运行时支持（2026-03-22）
+- **支持范围**：当前 React runtime 已打通 `3x3x3 / 4x4x4 / 5x5x5` 关卡的加载、渲染、切片和菜单开局。
+- **状态层改造**：`GameStoreSnapshot` 新增 `gridSize`，切片映射不再依赖全局常量，而是按当前关卡尺寸动态计算。
+- **切片控件改造**：`SliceControls` 的层/列按钮数量按 `gridSize` 动态生成；列切片的屏幕映射顺序也改成按尺寸生成升降序数组。
+- **渲染层改造**：
+  - `CubeMesh` / `GridRoot` / `TutorialMarkers` 的世界坐标换算改为按当前 `gridSize` 居中；
+  - `CameraRig` 会按棋盘尺寸自动拉远镜头，避免 4x4x4、5x5x5 被裁切。
+- **HUD 改造**：局面占用率改成 `cubes.length / gridSize^3`，高尺寸棋盘下危机氛围判断不再失真。
+- **配置校验**：`PlayableDemoConfig` 校验现允许 `3 / 4 / 5`，并继续对越界坐标、重叠格、分值表缺口做严格拦截。
+- **分值覆盖策略**：关卡运行时分值表统一补齐到 1-9 级，避免高密度棋盘里链式合成触发更高 merge result level 时被校验层拦住。
+- 请 `@主策划 樊老师` 将 `LevelDesign.md` 中“阶段三仍写成 3x3x3 空间”的描述同步回写为真实的 4x4x4 / 5x5x5 扩盘节奏，避免策划文档继续和关卡表脱节。
+
+### 11.8 调试局内自动验证按钮（2026-03-22）
+- **入口位置**：仅在 `debugMode === true` 的单局 HUD 中显示 `Auto Clear` 按钮，不污染正式玩家 HUD。
+- **行为定义**：按钮打开后，系统会周期性执行一轮启发式自动操作：
+  1. 若已有选中块且当前可见目标存在，直接提交第一可行目标；
+  2. 若当前切片挡住了目标，则优先重置切片；
+  3. 若未选中，则复用菜单展示盘面的启发式选点逻辑，优先同色合成，其次蓝块吞噬。
+- **用途定位**：这是**关卡可行性快检工具**，目标是帮助程序/策划快速判断 authored level 是否存在明显死局或路径中断，不承诺最优解，也不替代正式 solver。
+- **安全边界**：自动验证在 `paused / resolving / targeting_bomb / overlay active` 时自动挂起，避免和结算态、暂停态抢状态机。
+- 请 `@主策划 樊老师` 若后续要把“自动验证”纳入关卡制作流程，请同步在 `Doc/GameDesign/` 中补一条关卡验收规范，明确它是“启发式自测工具”，不是设计层面的保底通关证明。
+
+---
+
+**最后更新**: 2026-03-22  
+**当前状态**: 主菜单设置支持语言切换与调试关卡入口，运行进度与调试入口已隔离

@@ -1,13 +1,14 @@
 import React, { memo, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
 import { useGameStore } from '../../game/state/gameStore'
 import type { CubeData } from '../../game/model/types'
-import { CUBE_COLORS, CUBE_GAP, CUBE_SIZE, GRID_SIZE } from '../../game/config/config'
+import { CUBE_COLORS, CUBE_GAP, CUBE_SIZE } from '../../game/config/config'
 
-function toWorldPosition(x: number, y: number, z: number): [number, number, number] {
+function toWorldPosition(x: number, y: number, z: number, gridSize: number): [number, number, number] {
   const spacing = CUBE_SIZE + CUBE_GAP
-  const offset = ((GRID_SIZE - 1) * spacing) / 2
+  const offset = ((gridSize - 1) * spacing) / 2
   return [x * spacing - offset, y * spacing - offset, z * spacing - offset]
 }
 
@@ -22,7 +23,7 @@ function levelPhase(level: number) {
 function createLevelGeometry(level: number) {
   if (level <= 2) return new THREE.SphereGeometry(0.18, 24, 24)
   if (level === 3) return new THREE.OctahedronGeometry(0.22, 0)
-  if (level <= 5) return new THREE.IcosahedronGeometry(0.22, 0)
+  if (level <= 5) return new RoundedBoxGeometry(0.34, 0.34, 0.34, 5, 0.08)
   if (level === 6) return new THREE.TorusKnotGeometry(0.14, 0.045, 80, 12)
   if (level <= 8) return new THREE.DodecahedronGeometry(0.24, 0)
   return new THREE.IcosahedronGeometry(0.28, 1)
@@ -30,7 +31,12 @@ function createLevelGeometry(level: number) {
 
 function createSecondaryGeometry(level: number) {
   if (level < 4) return null
+  if (level <= 6) return new RoundedBoxGeometry(0.22, 0.22, 0.22, 4, 0.05)
   return new THREE.OctahedronGeometry(0.18, level >= 7 ? 1 : 0)
+}
+
+function createShellGeometry() {
+  return new RoundedBoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE, 6, 0.17)
 }
 
 function levelCoreScale(level: number) {
@@ -76,6 +82,40 @@ function createEnergyMaterial(primaryColor: THREE.Color, secondaryColor: THREE.C
     `,
     transparent: true,
     depthWrite: false
+  })
+}
+
+function createRimMaterial(color: THREE.Color) {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      uColor: { value: color },
+      uIntensity: { value: 1 }
+    },
+    vertexShader: `
+      varying vec3 vWorldNormal;
+      varying vec3 vViewDir;
+      void main() {
+        vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+        vWorldNormal = normalize(mat3(modelMatrix) * normal);
+        vViewDir = normalize(cameraPosition - worldPosition.xyz);
+        gl_Position = projectionMatrix * viewMatrix * worldPosition;
+      }
+    `,
+    fragmentShader: `
+      uniform vec3 uColor;
+      uniform float uIntensity;
+      varying vec3 vWorldNormal;
+      varying vec3 vViewDir;
+      void main() {
+        float fresnel = pow(1.0 - max(dot(normalize(vWorldNormal), normalize(vViewDir)), 0.0), 3.4);
+        float alpha = fresnel * 0.7 * uIntensity;
+        gl_FragColor = vec4(uColor * (0.45 + fresnel * 0.9), alpha);
+      }
+    `,
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    blending: THREE.AdditiveBlending
   })
 }
 
@@ -142,13 +182,13 @@ function createLabelTexture(level: number, dimmed: boolean) {
   return texture
 }
 
-function CubeMeshInner({ cube, interactive = true }: { cube: CubeData; interactive?: boolean }) {
+function CubeMeshInner({ cube, gridSize = 3, interactive = true, allowedCubeIds }: { cube: CubeData; gridSize?: number; interactive?: boolean; allowedCubeIds?: string[] | null }) {
   const { clickCube, getCubeVisualState, mergeAnimation } = useGameStore()
   const groupRef = useRef<THREE.Group>(null)
   const coreRef = useRef<THREE.Group>(null)
   const ringRef = useRef<THREE.Mesh>(null)
   const labelRefs = useRef<Array<THREE.Mesh | null>>([])
-  const position = useMemo(() => toWorldPosition(cube.x, cube.y, cube.z), [cube.x, cube.y, cube.z])
+  const position = useMemo(() => toWorldPosition(cube.x, cube.y, cube.z, gridSize), [cube.x, cube.y, cube.z, gridSize])
   const visual = getCubeVisualState(cube.id)
   const emissive = useMemo(() => (
     visual.selected || cube.level > 1
@@ -162,6 +202,7 @@ function CubeMeshInner({ cube, interactive = true }: { cube: CubeData; interacti
   const phase = levelPhase(cube.level)
   const faction = factionVisuals(cube.color)
   const labelTexture = useMemo(() => createLabelTexture(cube.level, visual.dimmed), [cube.level, visual.dimmed])
+  const shellGeometry = useMemo(() => createShellGeometry(), [])
   const coreGeometry = useMemo(() => createLevelGeometry(cube.level), [cube.level])
   const secondaryGeometry = useMemo(() => createSecondaryGeometry(cube.level), [cube.level])
   const labelMaterial = useMemo(() => new THREE.MeshBasicMaterial({
@@ -177,16 +218,19 @@ function CubeMeshInner({ cube, interactive = true }: { cube: CubeData; interacti
     if (cube.level < 7) return null
     return createEnergyMaterial(coreColor.clone(), new THREE.Color(faction.coreAccent))
   }, [coreColor, cube.level, faction.coreAccent])
+  const rimMaterial = useMemo(() => createRimMaterial(new THREE.Color(faction.coreAccent)), [faction.coreAccent])
 
   React.useEffect(() => {
     return () => {
       labelTexture.dispose()
       labelMaterial.dispose()
+      shellGeometry.dispose()
       coreGeometry.dispose()
       secondaryGeometry?.dispose()
       energyMaterial?.dispose()
+      rimMaterial.dispose()
     }
-  }, [coreGeometry, energyMaterial, labelMaterial, labelTexture, secondaryGeometry])
+  }, [coreGeometry, energyMaterial, labelMaterial, labelTexture, rimMaterial, secondaryGeometry, shellGeometry])
 
   useFrame(({ camera }) => {
     const group = groupRef.current
@@ -204,7 +248,8 @@ function CubeMeshInner({ cube, interactive = true }: { cube: CubeData; interacti
         const targetPosition = toWorldPosition(
           mergeAnimation.targetPosition.x,
           mergeAnimation.targetPosition.y,
-          mergeAnimation.targetPosition.z
+          mergeAnimation.targetPosition.z,
+          gridSize
         )
         group.position.set(
           THREE.MathUtils.lerp(position[0], targetPosition[0], eased),
@@ -233,6 +278,7 @@ function CubeMeshInner({ cube, interactive = true }: { cube: CubeData; interacti
       if (energyMaterial) {
         energyMaterial.uniforms.uTime.value = now
       }
+      rimMaterial.uniforms.uIntensity.value = visual.selected ? 1.28 : visual.highlighted ? 1.08 : 0.88
 
       const ring = ringRef.current
       if (ring) {
@@ -290,7 +336,6 @@ function CubeMeshInner({ cube, interactive = true }: { cube: CubeData; interacti
   const shellRoughness = phase === 'awakening' ? Math.max(0.3, faction.shellRoughness + 0.08) : phase === 'forming' ? faction.shellRoughness : Math.max(0.16, faction.shellRoughness - 0.02)
   const shellTransmission = phase === 'awakening' ? Math.max(0.48, faction.shellTransmission - 0.08) : phase === 'forming' ? faction.shellTransmission : Math.min(0.82, faction.shellTransmission + 0.04)
   const coreEmissiveIntensity = phase === 'awakening' ? 0.45 : phase === 'forming' ? 0.85 : phase === 'critical' ? 1.2 : 1.55
-  const edgeOpacity = visual.dimmed ? 0.24 : visual.selected ? 0.82 : 0.54
   const innerOpacity = visual.dimmed ? 0.58 : 1
   const shellOpacity = visual.selected ? 1 : visual.highlighted ? Math.min(1, faction.shellOpacity + 0.03) : faction.shellOpacity
   const selectedLift = visual.selected ? 0.04 : visual.highlighted ? 0.02 : 0
@@ -338,14 +383,14 @@ function CubeMeshInner({ cube, interactive = true }: { cube: CubeData; interacti
           </mesh>
         ) : null}
       </group>
-      <mesh onClick={(event) => {
-        if (!interactive) {
+        <mesh onClick={(event) => {
+        if (!interactive || (allowedCubeIds && !allowedCubeIds.includes(cube.id))) {
           return
         }
         event.stopPropagation()
         clickCube(cube.id)
       }}>
-        <boxGeometry args={[CUBE_SIZE, CUBE_SIZE, CUBE_SIZE]} />
+        <primitive attach="geometry" object={shellGeometry} />
         <meshPhysicalMaterial
           color={shellColor}
           metalness={0.02}
@@ -366,10 +411,10 @@ function CubeMeshInner({ cube, interactive = true }: { cube: CubeData; interacti
           opacity={isMergeSource ? Math.max(0.45, opacity * 0.72) : Math.max(0.9, opacity * shellOpacity)}
         />
       </mesh>
-      <lineSegments raycast={() => null}>
-        <edgesGeometry args={[new THREE.BoxGeometry(CUBE_SIZE * 0.98, CUBE_SIZE * 0.98, CUBE_SIZE * 0.98)]} />
-        <lineBasicMaterial color={visual.selected ? '#ffffff' : new THREE.Color(faction.coreAccent)} transparent opacity={edgeOpacity} />
-      </lineSegments>
+      <mesh raycast={() => null} scale={1.012}>
+        <primitive attach="geometry" object={shellGeometry} />
+        <primitive attach="material" object={rimMaterial} />
+      </mesh>
       {showSelectionRing ? (
         <mesh ref={ringRef} raycast={() => null} position={[0, -CUBE_SIZE * 0.54, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <torusGeometry args={[0.46, 0.028, 18, 48]} />

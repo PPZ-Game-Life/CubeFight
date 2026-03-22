@@ -1,5 +1,5 @@
 import type { ComboTextKey, CubeData, GameOverlay, GameRunState, MatchResult, ResumeTargetState, StatusHintKey } from '../model/types'
-import { getMatchResult } from './demoRules'
+import { getMatchResultWithVictory } from './demoRules'
 
 const COMBO_TEXT_BY_COUNT: ComboTextKey[] = ['nice', 'great', 'awesome', 'amazing', 'godlike']
 
@@ -16,6 +16,7 @@ export interface FlowSnapshot {
   selectedCubeId: string | null
   validTargetIds: string[]
   runState: GameRunState
+  victoryCondition?: 'clear_all_red' | 'none'
 }
 
 export interface PostActionEvaluation {
@@ -93,7 +94,7 @@ export function shouldExpireCombo(snapshot: ComboState, now: number): boolean {
 }
 
 export function evaluatePostAction(snapshot: FlowSnapshot): Omit<PostActionEvaluation, 'statusHintKey'> & { matchResult: MatchResult } {
-  const matchResult = getMatchResult(snapshot.cubes, snapshot.bombCount)
+  const matchResult = getMatchResultWithVictory(snapshot.cubes, snapshot.bombCount, snapshot.victoryCondition ?? 'clear_all_red')
 
   if (matchResult.kind === 'victory') {
     return {

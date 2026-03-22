@@ -1,4 +1,3 @@
-import { GRID_SIZE } from '../config/config'
 import type { CubeData, SliceState } from '../model/types'
 
 export function isCubeVisible(cube: CubeData, slice: SliceState): boolean {
@@ -6,23 +5,31 @@ export function isCubeVisible(cube: CubeData, slice: SliceState): boolean {
   return cube[slice.axis] === slice.index
 }
 
-export function getActualTopDownLayerIndex(index: number): number {
-  return GRID_SIZE - 1 - index
+export function getActualTopDownLayerIndex(index: number, gridSize: number): number {
+  return gridSize - 1 - index
 }
 
-export function getScreenColumnMapping(yaw: number): { axis: 'x' | 'z'; order: [number, number, number] } {
+function ascendingOrder(gridSize: number): number[] {
+  return Array.from({ length: gridSize }, (_, index) => index)
+}
+
+function descendingOrder(gridSize: number): number[] {
+  return ascendingOrder(gridSize).reverse()
+}
+
+export function getScreenColumnMapping(yaw: number, gridSize: number): { axis: 'x' | 'z'; order: number[] } {
   const normalizedYaw = ((yaw % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2)
   const quadrant = Math.round(normalizedYaw / (Math.PI / 2)) % 4
 
   switch (quadrant) {
     case 0:
-      return { axis: 'x', order: [0, 1, 2] }
+      return { axis: 'x', order: ascendingOrder(gridSize) }
     case 1:
-      return { axis: 'z', order: [2, 1, 0] }
+      return { axis: 'z', order: descendingOrder(gridSize) }
     case 2:
-      return { axis: 'x', order: [2, 1, 0] }
+      return { axis: 'x', order: descendingOrder(gridSize) }
     case 3:
     default:
-      return { axis: 'z', order: [0, 1, 2] }
+      return { axis: 'z', order: ascendingOrder(gridSize) }
   }
 }

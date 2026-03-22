@@ -4,8 +4,9 @@ import { useLocale } from './LocaleProvider'
 
 export function SliceControls() {
   const { t } = useLocale()
-  const { controls, overlay, resetSliceView, showLayerFromTop, showScreenColumn } = useGameStore()
+  const { controls, gridSize, overlay, resetSliceView, showLayerFromTop, showScreenColumn } = useGameStore()
   const overlayActive = overlay !== 'none'
+  const indices = React.useMemo(() => Array.from({ length: gridSize }, (_, index) => index), [gridSize])
 
   return (
     <div className={`slice-controls${overlayActive ? ' is-disabled' : ''}`} data-testid="slice-controls-root">
@@ -16,7 +17,7 @@ export function SliceControls() {
             <span aria-hidden="true" className="slice-controls__meta">Y</span>
           </div>
           <div className="slice-controls__buttons slice-controls__buttons--vertical">
-            {[0, 1, 2].map((index) => (
+            {indices.map((index) => (
               <button
                 key={index}
                 aria-pressed={controls.ySelection === index}
@@ -45,8 +46,8 @@ export function SliceControls() {
             <h2 className="slice-controls__label" id="slice-controls-column">{t.column}</h2>
             <span aria-hidden="true" className="slice-controls__meta">XZ</span>
           </div>
-          <div className="slice-controls__buttons slice-controls__buttons--horizontal">
-            {[0, 1, 2].map((index) => (
+          <div className="slice-controls__buttons slice-controls__buttons--horizontal" style={{ gridTemplateColumns: `repeat(${gridSize + 1}, minmax(0, 1fr))` }}>
+            {indices.map((index) => (
               <button
                 key={index}
                 aria-pressed={controls.xSelection === index}

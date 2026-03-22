@@ -31,6 +31,7 @@ function renderWithGameProviders(options: {
   store?: GameStore
   config?: PlayableDemoConfig
   onBackToLobby?: () => void
+  levelInfo?: React.ComponentProps<typeof HUD>['levelInfo']
 } = {}) {
   const locale = options.locale ?? 'en'
   const store = options.store ?? createGameStore({ config: options.config })
@@ -42,7 +43,7 @@ function renderWithGameProviders(options: {
     ...render(
         <LocaleProvider>
           <GameStoreContext.Provider value={store}>
-            <HUD onBackToLobby={options.onBackToLobby ?? (() => undefined)} />
+            <HUD levelInfo={options.levelInfo} onBackToLobby={options.onBackToLobby ?? (() => undefined)} />
           </GameStoreContext.Provider>
         </LocaleProvider>
     )
@@ -50,6 +51,7 @@ function renderWithGameProviders(options: {
 }
 
 afterEach(() => {
+  window.localStorage.clear()
   vi.unstubAllGlobals()
 })
 
@@ -174,6 +176,22 @@ describe('HUD', () => {
     fireEvent.click(screen.getByTestId('hud-lobby-button'))
 
     expect(onBackToLobby).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders authored level goals and remaining steps when provided', () => {
+    renderWithGameProviders({
+      levelInfo: {
+        levelLabel: 'Level 03',
+        stepsRemaining: 4,
+        objectives: [
+          { text: 'Devour Lv.1 yellow', complete: false }
+        ]
+      }
+    })
+
+    expect(screen.getByTestId('hud-level-panel')).toHaveTextContent('Level 03')
+    expect(screen.getByTestId('hud-level-panel')).toHaveTextContent('Steps: 4')
+    expect(screen.getByTestId('hud-level-panel')).toHaveTextContent('Devour Lv.1 yellow')
   })
 
   it('does not render an empty combo text bubble for x1 chains', () => {

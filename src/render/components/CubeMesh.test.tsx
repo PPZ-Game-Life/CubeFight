@@ -84,7 +84,7 @@ describe('CubeMesh', () => {
     const { container } = render(<CubeMesh cube={cube({ id: 'yellow-a', color: 'yellow', level: 6 })} />)
 
     expect(container.querySelectorAll('mesh').length).toBeGreaterThanOrEqual(9)
-    expect(container.querySelector('linesegments')).not.toBeNull()
+    expect(container.querySelector('linesegments')).toBeNull()
   })
 
   it('renders a ground ring when the cube is selected', () => {

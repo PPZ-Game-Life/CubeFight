@@ -2,7 +2,7 @@ export type CubeColor = 'blue' | 'red' | 'yellow'
 
 export type SliceAxis = 'x' | 'y' | 'z'
 
-export type PlayableDemoVictoryCondition = 'clear_all_red'
+export type PlayableDemoVictoryCondition = 'clear_all_red' | 'none'
 
 export type PlayableDemoSliceLayout = 'current-implementation'
 

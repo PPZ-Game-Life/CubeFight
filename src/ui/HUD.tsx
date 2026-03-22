@@ -1,9 +1,19 @@
 import React from 'react'
 
-import { GRID_SIZE } from '../game/config/config'
 import type { ComboTextKey } from '../game/model/types'
 import { useGameStore } from '../game/state/gameStore'
 import { useLocale } from './LocaleProvider'
+
+type LevelHudObjective = {
+  text: string
+  complete: boolean
+}
+
+type LevelHudInfo = {
+  levelLabel: string
+  stepsRemaining: number | null
+  objectives: LevelHudObjective[]
+}
 
 const rootStyle: React.CSSProperties = {
   position: 'absolute',
@@ -108,6 +118,20 @@ const bombDockStyle: React.CSSProperties = {
   backgroundImage: 'linear-gradient(180deg, rgba(255, 214, 148, 0.16), rgba(63, 73, 82, 0.22))'
 }
 
+const debugDockStyle: React.CSSProperties = {
+  ...glassPanelStyle,
+  pointerEvents: 'auto',
+  width: 'var(--hud-bomb-width, 148px)',
+  minHeight: 'var(--hud-bomb-height, 92px)',
+  padding: 'var(--hud-bomb-padding, 14px 16px 16px)',
+  appearance: 'none',
+  cursor: 'pointer',
+  textAlign: 'center',
+  color: '#f4f1ea',
+  transition: 'transform 160ms ease, box-shadow 160ms ease, opacity 160ms ease, border-color 160ms ease',
+  backgroundImage: 'linear-gradient(180deg, rgba(145, 220, 255, 0.14), rgba(48, 71, 92, 0.24))'
+}
+
 const utilityButtonStyle: React.CSSProperties = {
   pointerEvents: 'auto',
   position: 'absolute',
@@ -121,6 +145,16 @@ const utilityButtonStyle: React.CSSProperties = {
   border: 'none',
   background: 'radial-gradient(circle, rgba(16, 26, 39, 0.46), rgba(16, 26, 39, 0.08) 72%, rgba(16, 26, 39, 0))',
   transition: 'transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease'
+}
+
+const objectivePanelStyle: React.CSSProperties = {
+  ...glassPanelStyle,
+  pointerEvents: 'auto',
+  position: 'absolute',
+  top: 'var(--hud-padding, 16px)',
+  right: 'var(--hud-padding, 16px)',
+  width: 'min(280px, calc(100vw - 96px))',
+  padding: '12px 14px'
 }
 
 const bombDockDisabledStyle: React.CSSProperties = {
@@ -247,7 +281,7 @@ function GameOverlay({ overlay, title, restartLabel, restartDemo }: {
   )
 }
 
-export function HUD({ onBackToLobby }: { onBackToLobby: () => void }) {
+export function HUD({ levelInfo, onBackToLobby, debugAction }: { levelInfo?: LevelHudInfo; onBackToLobby: () => void; debugAction?: { active: boolean; onToggle: () => void } | null }) {
   const { t } = useLocale()
   const {
     bombCount,
@@ -255,6 +289,7 @@ export function HUD({ onBackToLobby }: { onBackToLobby: () => void }) {
     coins,
     comboCount,
     comboText,
+    gridSize,
     overlay,
     restartDemo,
     runState,
@@ -271,7 +306,7 @@ export function HUD({ onBackToLobby }: { onBackToLobby: () => void }) {
   const bombDisabled = bombVisuallyDisabled || bombInteractionDisabled
   const bombActive = runState === 'targeting_bomb'
   const overlayTitle = overlay === 'victory' ? t.hud.victory : overlay === 'game_over' ? t.hud.gameOver : null
-  const boardFillRatio = cubes.length / Math.pow(GRID_SIZE, 3)
+  const boardFillRatio = cubes.length / Math.pow(gridSize, 3)
   const showCrisisGlow = boardFillRatio >= 0.7
 
   return (
@@ -279,6 +314,22 @@ export function HUD({ onBackToLobby }: { onBackToLobby: () => void }) {
       <button aria-label={t.hud.lobby} data-testid="hud-lobby-button" style={utilityButtonStyle} type="button" onClick={onBackToLobby}>
         <span aria-hidden="true" style={{ fontSize: 22, lineHeight: 1 }}>⌂</span>
       </button>
+
+      {levelInfo ? (
+        <section data-testid="hud-level-panel" style={objectivePanelStyle}>
+          <div style={compactLabelStyle}>{levelInfo.levelLabel}</div>
+          {levelInfo.stepsRemaining !== null ? (
+            <div style={{ ...secondaryValueStyle, marginTop: 6 }}>{t.hud.steps}: {levelInfo.stepsRemaining}</div>
+          ) : null}
+          <div style={{ marginTop: 8, display: 'grid', gap: 6 }}>
+            {levelInfo.objectives.map((objective) => (
+              <div key={objective.text} style={{ ...compactLabelStyle, color: objective.complete ? '#b8f3c8' : 'rgba(244, 241, 234, 0.78)', letterSpacing: '0.08em', lineHeight: 1.4 }}>
+                {objective.complete ? 'OK ' : ''}{objective.text}
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <div className="hud__stat-bar" data-testid="hud-stat-bar" style={statBarStyle}>
         <ScorePill coins={coins} coinsLabel={t.coins} score={score} scoreLabel={t.hud.score} />
@@ -294,6 +345,26 @@ export function HUD({ onBackToLobby }: { onBackToLobby: () => void }) {
       {showCrisisGlow ? <div className="hud__crisis-glow" data-testid="hud-crisis-glow" /> : null}
 
       <div className="hud__bottom-row" data-testid="hud-bottom-row" style={bottomRowStyle}>
+        {debugAction ? (
+          <button
+            aria-label={debugAction.active ? t.hud.stopAutoSolve : t.hud.autoSolve}
+            data-testid="hud-debug-auto-solve"
+            style={{
+              ...debugDockStyle,
+              borderColor: debugAction.active ? 'rgba(133, 228, 184, 0.34)' : 'rgba(255, 255, 255, 0.18)',
+              backgroundImage: debugAction.active
+                ? 'linear-gradient(180deg, rgba(133, 228, 184, 0.18), rgba(45, 88, 69, 0.26))'
+                : debugDockStyle.backgroundImage
+            }}
+            type="button"
+            onClick={debugAction.onToggle}
+          >
+            <div style={compactLabelStyle}>Debug</div>
+            <div style={{ ...secondaryValueStyle, marginTop: 10, fontSize: 20, color: debugAction.active ? '#b8f3c8' : '#dceef9' }}>
+              {debugAction.active ? t.hud.stopAutoSolve : t.hud.autoSolve}
+            </div>
+          </button>
+        ) : null}
         <button
           aria-disabled={bombDisabled}
           aria-label={t.hud.bombs}

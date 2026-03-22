@@ -13,7 +13,7 @@ export default {
     coins: 'Coins',
     addCoins: 'Get more coins',
     startJourney: 'PLAY',
-    currentLevel: 'Current: Level 15',
+    currentLevel: (levelLabel: string) => `Current: ${levelLabel}`,
     endlessMode: 'Endless Mode',
     unlockHint: 'Unlock after Level 20',
     skinShop: 'Skin Shop',
@@ -21,13 +21,26 @@ export default {
     leaderboard: 'Leaderboard',
     leaderboardHint: 'Top pilots of the cube arena',
     settings: 'Settings',
-    help: 'Help'
+    help: 'Help',
+    debugActive: 'Debug tools armed',
+    settingsTitle: 'Settings',
+    language: 'Language',
+    languageOptions: {
+      'zh-CN': '简体中文',
+      en: 'English'
+    },
+    debugMode: 'Debug Mode',
+    debugModeHint: 'Enable direct access to any authored level.',
+    debugLevel: 'Debug Level',
+    closeSettings: 'Close Settings'
   },
   hud: {
     lobby: 'Lobby',
     score: 'Score',
+    steps: 'Steps',
     combo: 'Combo',
     bombs: 'Bombs',
+    hint: 'Hint',
     status: 'Hint',
     pause: 'Pause',
     resume: 'Resume',
@@ -35,6 +48,8 @@ export default {
     paused: 'Paused',
     victory: 'Victory',
     gameOver: 'Game Over',
+    autoSolve: 'Auto Clear',
+    stopAutoSolve: 'Stop Auto',
     comboTexts: {
       nice: 'Nice!',
       great: 'Great!',

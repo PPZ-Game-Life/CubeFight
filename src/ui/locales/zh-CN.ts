@@ -13,7 +13,7 @@ export default {
     coins: '金币',
     addCoins: '获取更多金币',
     startJourney: '开始闯关',
-    currentLevel: '当前：Level 15',
+    currentLevel: (levelLabel: string) => `当前：${levelLabel}`,
     endlessMode: '无尽模式',
     unlockHint: '通关 Level 20 解锁',
     skinShop: '皮肤商店',
@@ -21,13 +21,26 @@ export default {
     leaderboard: '排行榜',
     leaderboardHint: '查看方块竞技场顶尖玩家',
     settings: '设置',
-    help: '玩法说明'
+    help: '玩法说明',
+    debugActive: '调试功能已启用',
+    settingsTitle: '设置',
+    language: '语言',
+    languageOptions: {
+      'zh-CN': '简体中文',
+      en: 'English'
+    },
+    debugMode: '调试模式',
+    debugModeHint: '打开后可直接选择并进入任意关卡。',
+    debugLevel: '调试关卡',
+    closeSettings: '关闭设置'
   },
   hud: {
     lobby: '大厅',
     score: '积分',
+    steps: '步数',
     combo: '连击',
     bombs: '炸弹',
+    hint: '提示',
     status: '提示',
     pause: '暂停',
     resume: '继续',
@@ -35,6 +48,8 @@ export default {
     paused: '已暂停',
     victory: '胜利',
     gameOver: '游戏结束',
+    autoSolve: '自动消除',
+    stopAutoSolve: '停止自动',
     comboTexts: {
       nice: '不错！',
       great: '漂亮！',

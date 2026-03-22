@@ -26,6 +26,7 @@ function renderWithProviders(options: { locale?: Locale; store?: ReturnType<type
 }
 
 afterEach(() => {
+  window.localStorage.clear()
   vi.unstubAllGlobals()
 })
 

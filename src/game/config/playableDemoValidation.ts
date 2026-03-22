@@ -1,6 +1,6 @@
 import type { CubeData, PlayableDemoConfig } from '../model/types'
 
-const SUPPORTED_PLAYABLE_DEMO_GRID_SIZE = 3
+const SUPPORTED_PLAYABLE_DEMO_GRID_SIZES = [3, 4, 5] as const
 
 export class PlayableDemoConfigError extends Error {
   readonly issues: string[]
@@ -127,9 +127,9 @@ export function validatePlayableDemoConfig(config: unknown): PlayableDemoConfigE
     errors.push(new PlayableDemoConfigError('Playable demo config requires board.gridSize.'))
   } else if (!isPositiveInteger(gridSize)) {
     errors.push(new PlayableDemoConfigError('Playable demo config requires board.gridSize to be a positive integer.'))
-  } else if (gridSize !== SUPPORTED_PLAYABLE_DEMO_GRID_SIZE) {
+  } else if (!SUPPORTED_PLAYABLE_DEMO_GRID_SIZES.includes(gridSize as (typeof SUPPORTED_PLAYABLE_DEMO_GRID_SIZES)[number])) {
     errors.push(new PlayableDemoConfigError(
-      `Playable demo config requires board.gridSize to be ${SUPPORTED_PLAYABLE_DEMO_GRID_SIZE} for this demo slice.`
+      `Playable demo config requires board.gridSize to be one of ${SUPPORTED_PLAYABLE_DEMO_GRID_SIZES.join(', ')}.`
     ))
   }
 
@@ -194,8 +194,8 @@ export function validatePlayableDemoConfig(config: unknown): PlayableDemoConfigE
   validateScoreTableValues(scoring?.devourRedBase, 'scoring.devourRedBase', errors)
   validateScoreTableValues(scoring?.devourYellowBase, 'scoring.devourYellowBase', errors)
 
-  if (winLoss?.victory !== 'clear_all_red') {
-    errors.push(new PlayableDemoConfigError('Playable demo config requires winLoss.victory to be clear_all_red.'))
+  if (winLoss?.victory !== 'clear_all_red' && winLoss?.victory !== 'none') {
+    errors.push(new PlayableDemoConfigError('Playable demo config requires winLoss.victory to be clear_all_red or none.'))
   }
 
   if (winLoss?.requireNoMovesForGameOver !== true) {
@@ -218,7 +218,7 @@ export function validatePlayableDemoConfig(config: unknown): PlayableDemoConfigE
     errors.push(new PlayableDemoConfigError('Playable demo config requires ui.sliceLayout to be current-implementation.'))
   }
 
-  if (gridSize === SUPPORTED_PLAYABLE_DEMO_GRID_SIZE) {
+  if (gridSize !== null && SUPPORTED_PLAYABLE_DEMO_GRID_SIZES.includes(gridSize as (typeof SUPPORTED_PLAYABLE_DEMO_GRID_SIZES)[number])) {
     const seenIds = new Set<string>()
     const occupiedCells = new Set<string>()
 

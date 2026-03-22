@@ -50,6 +50,13 @@ type VisualState = {
   dimmed: boolean
 }
 
+type ActionStats = {
+  actionsUsed: number
+  bombsUsed: number
+  mergeCounts: Record<string, number>
+  devourCounts: Record<string, number>
+}
+
 type TimerApi = {
   setTimeout: typeof setTimeout
   clearTimeout: typeof clearTimeout
@@ -70,9 +77,11 @@ type GameStoreData = ComboState & {
   slice: SliceState
   controls: ControlState
   camera: CameraState
+  actionStats: ActionStats
 }
 
 export type GameStoreSnapshot = {
+  gridSize: number
   cubes: CubeData[]
   visibleCubes: CubeData[]
   selectedCubeId: string | null
@@ -91,6 +100,7 @@ export type GameStoreSnapshot = {
   overlay: GameOverlay
   statusHintKey: StatusHintKey | null
   matchResult: MatchResult
+  actionStats: ActionStats
   ui: PlayableDemoUiConfig
   validTargetIds: string[]
   bombTargetIds: string[]
@@ -176,8 +186,18 @@ function createInitialData(config: PlayableDemoConfig): GameStoreData {
     mergeAnimation: null,
     slice: { axis: null, index: -1 },
     controls: { xSelection: -1, ySelection: -1 },
-    camera: { yaw: 0, pitch: Math.PI / 2 }
+    camera: { yaw: 0, pitch: Math.PI / 2 },
+    actionStats: {
+      actionsUsed: 0,
+      bombsUsed: 0,
+      mergeCounts: {},
+      devourCounts: {}
+    }
   }
+}
+
+function incrementActionCount(table: Record<string, number>, key: string) {
+  table[key] = (table[key] ?? 0) + 1
 }
 
 export function createGameStore(options: CreateGameStoreOptions = {}): GameStore {
@@ -243,7 +263,8 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
       bombCount: data.bombCount,
       selectedCubeId: data.selectedCubeId,
       validTargetIds,
-      runState: data.runState
+      runState: data.runState,
+      victoryCondition: config.winLoss.victory
     })
 
     data.matchResult = nextFlow.matchResult
@@ -340,6 +361,8 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
 
     data.cubes = result.cubes.map(cloneCube)
     data.bombCount = Math.max(0, data.bombCount - 1)
+    data.actionStats.actionsUsed += 1
+    data.actionStats.bombsUsed += 1
     data.selectedCubeId = null
     data.mergeAnimation = null
     syncInteractiveFlow()
@@ -406,8 +429,10 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
 
     const comboCount = applyComboProgress()
     const awardedScore = getComboScore(result.baseScore, comboCount, config.combo.multiplierTable)
+    data.actionStats.actionsUsed += 1
 
     if (result.kind === 'merge') {
+      incrementActionCount(data.actionStats.mergeCounts, `${selectedCube.color}:${result.nextLevel}`)
       clearResolutionTimer()
       data.runState = 'resolving'
       data.overlay = 'none'
@@ -432,6 +457,7 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
 
     data.cubes = result.cubes.map(cloneCube)
     data.score += awardedScore
+    incrementActionCount(data.actionStats.devourCounts, `${target.color}:${result.consumedLevel}`)
     if (result.kind === 'devour_yellow') {
       data.coins += result.consumedLevel
     }
@@ -542,14 +568,14 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
 
   const showLayerFromTop = (index: number) => {
     data.controls = { ...data.controls, ySelection: index }
-    data.slice = { axis: 'y', index: getActualTopDownLayerIndex(index) }
+    data.slice = { axis: 'y', index: getActualTopDownLayerIndex(index, config.board.gridSize) }
     syncSliceInteractionState()
     applyStatusHint()
     emit()
   }
 
   const showScreenColumn = (index: number) => {
-    const mapping = getScreenColumnMapping(data.camera.yaw)
+    const mapping = getScreenColumnMapping(data.camera.yaw, config.board.gridSize)
     data.controls = { ...data.controls, xSelection: index }
     data.slice = { axis: mapping.axis, index: mapping.order[index] }
     syncSliceInteractionState()
@@ -639,6 +665,7 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
 
     const derived = getDerived()
     cachedSnapshot = {
+      gridSize: config.board.gridSize,
       cubes: data.cubes,
       visibleCubes: derived.visibleCubes,
       selectedCubeId: data.selectedCubeId,
@@ -657,6 +684,7 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
       overlay: data.overlay,
       statusHintKey: data.statusHintKey,
       matchResult: data.matchResult,
+      actionStats: data.actionStats,
       ui: config.ui,
       validTargetIds: derived.validTargetIds,
       bombTargetIds: derived.bombTargetIds,
@@ -693,11 +721,13 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
   }
 }
 
-export function GameStoreProvider({ children }: { children: React.ReactNode }) {
+export function GameStoreProvider({ children, config, storeKey = 'default' }: { children: React.ReactNode; config?: PlayableDemoConfig; storeKey?: string | number }) {
   const storeRef = useRef<GameStore | null>(null)
+  const storeKeyRef = useRef<string | number | null>(null)
 
-  if (!storeRef.current) {
-    storeRef.current = createGameStore()
+  if (!storeRef.current || storeKeyRef.current !== storeKey) {
+    storeRef.current = createGameStore({ config })
+    storeKeyRef.current = storeKey
   }
 
   return <GameStoreContext.Provider value={storeRef.current}>{children}</GameStoreContext.Provider>
@@ -712,8 +742,8 @@ export function useGameStore() {
   return useSyncExternalStore(store.subscribe, store.getState, store.getState)
 }
 
-export function toWorldPosition(x: number, y: number, z: number): [number, number, number] {
+export function toWorldPosition(x: number, y: number, z: number, gridSize = 3): [number, number, number] {
   const spacing = CUBE_SIZE + CUBE_GAP
-  const offset = spacing
+  const offset = ((gridSize - 1) * spacing) / 2
   return [x * spacing - offset, y * spacing - offset, z * spacing - offset]
 }

@@ -144,12 +144,21 @@ describe('playable demo config validation', () => {
     expect(getErrorMessages(config)).toContainEqual(expect.stringMatching(/board\.gridSize.*positive integer/i))
   })
 
-  it('rejects a config with an unsupported non-3 board.gridSize', () => {
+  it('accepts supported larger board.gridSize values', () => {
     const config = buildPlayableDemoConfig()
 
     config.board.gridSize = 4
+    config.board.cubes[0] = { ...config.board.cubes[0], x: 3, y: 3, z: 3 }
 
-    expect(getErrorMessages(config)).toContainEqual(expect.stringMatching(/board\.gridSize.*to be 3/i))
+    expect(getErrorMessages(config)).toEqual([])
+  })
+
+  it('rejects a config with an unsupported board.gridSize outside 3-5', () => {
+    const config = buildPlayableDemoConfig()
+
+    config.board.gridSize = 6
+
+    expect(getErrorMessages(config)).toContainEqual(expect.stringMatching(/board\.gridSize.*3, 4, 5/i))
   })
 
   it('rejects a config with an invalid inventory.bombCount number', () => {

@@ -89,7 +89,7 @@
 | :--- | :--- | :--- |
 | `id` | int | 关卡唯一ID，1-30 为关卡模式，999 为无尽模式。 |
 | `name` | string | 关卡内部名称（用于埋点或多语言Key）。 |
-| `gridSize` | int | 棋盘尺寸，目前支持 3 (3x3x3) 或 4 (4x4x4)。决定了相机的初始距离。 |
+| `gridSize` | int | 棋盘尺寸，目前支持 3 (3x3x3)、4 (4x4x4) 或 5 (5x5x5)。决定了相机的初始距离。 |
 | `spawnMode` | enum | `static` (静态解谜，不刷怪) 或 `dynamic` (动态补位，操作后刷怪)。 |
 | `objectives` | array | 过关条件数组，必须全部满足才算过关。 |
 | └ `type` | enum | `merge` (合成指定等级)、`devour` (吃掉指定颜色/等级数量)、`score` (达到指定积分)、`clear_all_red` (清空全场红块)。 |

@@ -221,9 +221,13 @@ export function resolveBomb(cubes: CubeData[], targetId: string): ResolveBombRes
 }
 
 export function getMatchResult(cubes: CubeData[], bombCount: number): MatchResult {
+  return getMatchResultWithVictory(cubes, bombCount, 'clear_all_red')
+}
+
+export function getMatchResultWithVictory(cubes: CubeData[], bombCount: number, victory: PlayableDemoConfig['winLoss']['victory']): MatchResult {
   const hasRed = cubes.some((cube) => cube.color === 'red')
 
-  if (!hasRed) {
+  if (victory === 'clear_all_red' && !hasRed) {
     return { kind: 'victory' }
   }
 
