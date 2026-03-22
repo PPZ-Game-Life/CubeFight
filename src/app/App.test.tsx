@@ -23,7 +23,7 @@ describe('App main menu flow', () => {
     expect(screen.getByTestId('main-menu-logo')).toBeInTheDocument()
     expect(screen.getByTestId('main-menu-hero')).toBeInTheDocument()
     expect(screen.getByTestId('main-menu-actions')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Skin Shop/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Skin Shop/i })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Leaderboard/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Settings/i })).toBeInTheDocument()
     expect(screen.queryByTestId('hud-stat-bar')).not.toBeInTheDocument()
@@ -34,8 +34,9 @@ describe('App main menu flow', () => {
     expect(screen.queryByTestId('main-menu')).not.toBeInTheDocument()
     expect(screen.getByTestId('hud-stat-bar')).toBeInTheDocument()
     expect(screen.queryByTestId('slice-controls-root')).not.toBeInTheDocument()
-    expect(screen.getByTestId('hud-level-panel')).toBeInTheDocument()
+    expect(screen.queryByTestId('hud-level-panel')).not.toBeInTheDocument()
     expect(screen.getByTestId('game-canvas')).toHaveAttribute('data-interactive', 'true')
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeInTheDocument()
   })
 
   it('returns to the main menu when pressing the lobby button', () => {
@@ -61,7 +62,8 @@ describe('App main menu flow', () => {
 
     if (nextLevelButton) {
       fireEvent.click(nextLevelButton)
-      expect(screen.getByTestId('hud-level-panel')).toHaveTextContent('Level 02')
+      expect(screen.queryByTestId('hud-level-panel')).not.toBeInTheDocument()
+      expect(screen.getByTestId('slice-controls-root')).toBeInTheDocument()
     }
   })
 
@@ -75,6 +77,11 @@ describe('App main menu flow', () => {
 
     expect(screen.getByRole('button', { name: /开始闯关/i })).toBeInTheDocument()
     expect(screen.getByTestId('main-menu-settings')).toHaveTextContent('设置')
+
+    fireEvent.click(screen.getByTestId('main-menu-start'))
+
+    expect(screen.getByRole('button', { name: '继续' })).toBeInTheDocument()
+    expect(screen.getByText(/这是蓝色方块/i)).toBeInTheDocument()
   })
 
   it('allows selecting any authored level after enabling debug mode', () => {
@@ -91,7 +98,7 @@ describe('App main menu flow', () => {
 
     fireEvent.click(screen.getByTestId('main-menu-start'))
 
-    expect(screen.getByTestId('hud-level-panel')).toHaveTextContent('Level 05')
+    expect(screen.queryByTestId('hud-level-panel')).not.toBeInTheDocument()
     expect(screen.getByTestId('hud-debug-auto-solve')).toHaveTextContent('Auto Clear')
 
     fireEvent.click(screen.getByTestId('hud-debug-auto-solve'))

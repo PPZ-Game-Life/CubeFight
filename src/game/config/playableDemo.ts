@@ -38,7 +38,7 @@ const PLAYABLE_DEMO_CONFIG_TEMPLATE: PlayableDemoConfig = {
     cubes: PLAYABLE_DEMO_CUBES
   },
   inventory: {
-    bombCount: 1
+    bombCount: 0
   },
   combo: {
     timeoutMs: 3000,

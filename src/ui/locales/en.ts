@@ -45,6 +45,8 @@ export default {
     pause: 'Pause',
     resume: 'Resume',
     restart: 'Restart',
+    continueRun: 'Continue Scoring',
+    targetReached: 'Target Reached',
     paused: 'Paused',
     victory: 'Victory',
     gameOver: 'Game Over',

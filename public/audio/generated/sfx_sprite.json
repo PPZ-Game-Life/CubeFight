@@ -1,0 +1,73 @@
+{
+  "sampleRate": 11025,
+  "sprite": {
+    "hover_l1": {
+      "start": 0,
+      "end": 0.04
+    },
+    "hover_l2": {
+      "start": 0.06,
+      "end": 0.1
+    },
+    "hover_l3": {
+      "start": 0.12,
+      "end": 0.16
+    },
+    "click_confirm": {
+      "start": 0.18,
+      "end": 0.3
+    },
+    "select_blue": {
+      "start": 0.32,
+      "end": 0.41
+    },
+    "merge_lv2": {
+      "start": 0.43,
+      "end": 0.63
+    },
+    "merge_lv3": {
+      "start": 0.65,
+      "end": 0.838
+    },
+    "merge_lv4": {
+      "start": 0.858,
+      "end": 1.034
+    },
+    "merge_lv5": {
+      "start": 1.054,
+      "end": 1.218
+    },
+    "merge_lv6": {
+      "start": 1.238,
+      "end": 1.39
+    },
+    "merge_lv7": {
+      "start": 1.41,
+      "end": 1.55
+    },
+    "merge_lv8": {
+      "start": 1.57,
+      "end": 1.698
+    },
+    "merge_lv9": {
+      "start": 1.718,
+      "end": 1.834
+    },
+    "devour_red": {
+      "start": 1.854,
+      "end": 1.994
+    },
+    "devour_yellow": {
+      "start": 2.014,
+      "end": 2.094
+    },
+    "combo_base": {
+      "start": 2.114,
+      "end": 2.224
+    },
+    "combo_x5_bonus": {
+      "start": 2.244,
+      "end": 2.424
+    }
+  }
+}

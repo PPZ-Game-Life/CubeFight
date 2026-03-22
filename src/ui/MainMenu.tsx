@@ -1,5 +1,6 @@
 import React from 'react'
 
+import { audioManager } from '../audio/audioManager'
 import type { Locale } from '../game/model/types'
 import { useLocale } from './LocaleProvider'
 
@@ -67,17 +68,15 @@ export function MainMenu({
             <span className="main-menu__action-subtitle">{currentLevelLabel ?? t.menu.currentLevel('Level 01')}</span>
           </button>
 
-          <button className="main-menu__action main-menu__action--secondary" type="button">
-            <span className="main-menu__action-title">{t.menu.skinShop}</span>
-            <span className="main-menu__action-subtitle">{t.menu.skinTeaser}</span>
-          </button>
-
-          <button className="main-menu__action main-menu__action--secondary" type="button">
+          <button className="main-menu__action main-menu__action--secondary" type="button" onClick={() => void audioManager.playUiConfirm()}>
             <span className="main-menu__action-title">{t.menu.leaderboard}</span>
             <span className="main-menu__action-subtitle">{endlessUnlocked ? t.menu.leaderboardHint : t.menu.unlockHint}</span>
           </button>
 
-          <button className="main-menu__action main-menu__action--secondary" data-testid="main-menu-settings" type="button" onClick={() => setSettingsOpen(true)}>
+          <button className="main-menu__action main-menu__action--secondary" data-testid="main-menu-settings" type="button" onClick={() => {
+            void audioManager.playUiConfirm()
+            setSettingsOpen(true)
+          }}>
             <span className="main-menu__action-title">{t.menu.settings}</span>
             <span className="main-menu__action-subtitle">{debugMode ? t.menu.debugActive : t.menu.help}</span>
           </button>
@@ -92,7 +91,10 @@ export function MainMenu({
                 <div className="main-menu__settings-kicker">CubeFight</div>
                 <h2 className="main-menu__settings-title">{t.menu.settingsTitle}</h2>
               </div>
-              <button className="main-menu__settings-close" type="button" onClick={() => setSettingsOpen(false)}>
+              <button className="main-menu__settings-close" type="button" onClick={() => {
+                void audioManager.playUiConfirm()
+                setSettingsOpen(false)
+              }}>
                 {t.menu.closeSettings}
               </button>
             </div>
@@ -106,10 +108,13 @@ export function MainMenu({
                     className={`main-menu__segmented-option${locale === localeOption ? ' is-active' : ''}`}
                     data-testid={`main-menu-locale-${localeOption}`}
                     type="button"
-                    onClick={() => onLocaleChange(localeOption)}
-                  >
-                    {t.menu.languageOptions[localeOption]}
-                  </button>
+                      onClick={() => {
+                        void audioManager.playUiConfirm()
+                        onLocaleChange(localeOption)
+                      }}
+                    >
+                      {t.menu.languageOptions[localeOption]}
+                    </button>
                 ))}
               </div>
             </section>
@@ -124,7 +129,10 @@ export function MainMenu({
                   checked={debugMode}
                   data-testid="main-menu-debug-toggle"
                   type="checkbox"
-                  onChange={(event) => onDebugModeChange(event.target.checked)}
+                  onChange={(event) => {
+                    void audioManager.playUiConfirm()
+                    onDebugModeChange(event.target.checked)
+                  }}
                 />
               </label>
             </section>
@@ -139,7 +147,10 @@ export function MainMenu({
                   className="main-menu__select"
                   data-testid="main-menu-debug-level-select"
                   value={selectedLevelId}
-                  onChange={(event) => onSelectedLevelChange(Number(event.target.value))}
+                  onChange={(event) => {
+                    void audioManager.playUiConfirm()
+                    onSelectedLevelChange(Number(event.target.value))
+                  }}
                 >
                   {selectableLevels.map((levelId) => (
                     <option key={levelId} value={levelId}>{`Level ${String(levelId).padStart(2, '0')}`}</option>

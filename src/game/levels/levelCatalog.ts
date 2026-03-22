@@ -269,7 +269,7 @@ export function buildPlayableConfigFromLevel(levelId: number): PlayableDemoConfi
       cubes: level.initialMap.map((cube, index) => ({ ...cube, id: `lvl${level.id.toString().padStart(2, '0')}_${index.toString().padStart(3, '0')}` }))
     },
     inventory: {
-      bombCount: level.id >= 9 ? 1 : 0
+      bombCount: 0
     },
     scoring: {
       mergeBase,

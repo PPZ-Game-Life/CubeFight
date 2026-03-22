@@ -1,4 +1,5 @@
 import React from 'react'
+import { audioManager } from '../audio/audioManager'
 import { useGameStore } from '../game/state/gameStore'
 import { useLocale } from './LocaleProvider'
 
@@ -11,11 +12,7 @@ export function SliceControls() {
   return (
     <div className={`slice-controls${overlayActive ? ' is-disabled' : ''}`} data-testid="slice-controls-root">
       <div className="slice-controls__cluster" data-testid="slice-controls-cluster">
-        <section aria-labelledby="slice-controls-layer" className="slice-controls__panel slice-controls__panel--layer" data-testid="slice-layer-rail">
-          <div className="slice-controls__header">
-            <h2 className="slice-controls__label" id="slice-controls-layer">{t.layer}</h2>
-            <span aria-hidden="true" className="slice-controls__meta">Y</span>
-          </div>
+        <section aria-label={t.layer} className="slice-controls__panel slice-controls__panel--layer" data-testid="slice-layer-rail">
           <div className="slice-controls__buttons slice-controls__buttons--vertical">
             {indices.map((index) => (
               <button
@@ -24,7 +21,10 @@ export function SliceControls() {
                 className={`slice-controls__button${controls.ySelection === index ? ' is-active' : ''}`}
                 disabled={overlayActive}
                 type="button"
-                onClick={() => showLayerFromTop(index)}
+                onClick={() => {
+                  void audioManager.playSlice(index)
+                  showLayerFromTop(index)
+                }}
               >
                 {index}
               </button>
@@ -34,18 +34,17 @@ export function SliceControls() {
               className={`slice-controls__button${controls.ySelection === -1 ? ' is-active' : ''}`}
               disabled={overlayActive}
               type="button"
-              onClick={resetSliceView}
+              onClick={() => {
+                void audioManager.playUiConfirm()
+                resetSliceView()
+              }}
             >
               {t.all}
             </button>
           </div>
         </section>
 
-        <section aria-labelledby="slice-controls-column" className="slice-controls__panel slice-controls__panel--column" data-testid="slice-column-rail">
-          <div className="slice-controls__header">
-            <h2 className="slice-controls__label" id="slice-controls-column">{t.column}</h2>
-            <span aria-hidden="true" className="slice-controls__meta">XZ</span>
-          </div>
+        <section aria-label={t.column} className="slice-controls__panel slice-controls__panel--column" data-testid="slice-column-rail">
           <div className="slice-controls__buttons slice-controls__buttons--horizontal" style={{ gridTemplateColumns: `repeat(${gridSize + 1}, minmax(0, 1fr))` }}>
             {indices.map((index) => (
               <button
@@ -54,7 +53,10 @@ export function SliceControls() {
                 className={`slice-controls__button${controls.xSelection === index ? ' is-active' : ''}`}
                 disabled={overlayActive}
                 type="button"
-                onClick={() => showScreenColumn(index)}
+                onClick={() => {
+                  void audioManager.playSlice(index)
+                  showScreenColumn(index)
+                }}
               >
                 {index}
               </button>
@@ -64,7 +66,10 @@ export function SliceControls() {
               className={`slice-controls__button${controls.xSelection === -1 ? ' is-active' : ''}`}
               disabled={overlayActive}
               type="button"
-              onClick={resetSliceView}
+              onClick={() => {
+                void audioManager.playUiConfirm()
+                resetSliceView()
+              }}
             >
               {t.all}
             </button>

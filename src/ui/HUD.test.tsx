@@ -71,7 +71,7 @@ describe('HUD', () => {
     renderWithGameProviders({ store })
 
     expect(screen.getByText('Score')).toBeInTheDocument()
-    expect(screen.getByText('Bombs')).toBeInTheDocument()
+    expect(screen.queryByText('Bombs')).not.toBeInTheDocument()
     expect(screen.getByTestId('hud-score-hero')).toBeInTheDocument()
     expect(screen.getByTestId('hud-combo-callout')).toBeInTheDocument()
   })
@@ -113,7 +113,7 @@ describe('HUD', () => {
     expect(screen.getByRole('dialog', { name: 'Game Over' })).toBeInTheDocument()
   })
 
-  it('keeps the zero-bomb control visually disabled while surfacing the noBombs hint on click', () => {
+  it('does not render the bomb control while props are disabled', () => {
     const config = buildConfig([
       cube({ id: 'blue-a', color: 'blue', x: 0, y: 0, z: 0 }),
       cube({ id: 'red-a', color: 'red', x: 1, y: 0, z: 0 }),
@@ -126,12 +126,7 @@ describe('HUD', () => {
 
     renderWithGameProviders({ store })
 
-    const bombButton = screen.getByRole('button', { name: 'Bombs' })
-
-    expect(bombButton).toHaveAttribute('aria-disabled', 'true')
-
-    fireEvent.click(bombButton)
-
+    expect(screen.queryByRole('button', { name: 'Bombs' })).not.toBeInTheDocument()
     expect(screen.queryByText('Combo')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Pause' })).not.toBeInTheDocument()
   })
@@ -151,7 +146,7 @@ describe('HUD', () => {
     renderWithGameProviders({ store, locale: 'zh-CN' })
 
     expect(screen.getByText('积分')).toBeInTheDocument()
-    expect(screen.getByText('炸弹')).toBeInTheDocument()
+    expect(screen.queryByText('炸弹')).not.toBeInTheDocument()
 
     expect(screen.getByRole('dialog', { name: '胜利' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '重新开始' })).toBeInTheDocument()
@@ -163,7 +158,7 @@ describe('HUD', () => {
     expect(screen.getByTestId('hud-stat-bar')).toBeInTheDocument()
     expect(screen.getByTestId('hud-score-hero')).toBeInTheDocument()
     expect(screen.getByTestId('hud-lobby-button')).toBeInTheDocument()
-    expect(screen.getByTestId('hud-bomb-dock')).toBeInTheDocument()
+    expect(screen.queryByTestId('hud-bomb-dock')).not.toBeInTheDocument()
     expect(screen.getByTestId('hud-bottom-row')).toBeInTheDocument()
     expect(screen.queryByLabelText('Hammer')).not.toBeInTheDocument()
   })
@@ -189,9 +184,12 @@ describe('HUD', () => {
       }
     })
 
-    expect(screen.getByTestId('hud-level-panel')).toHaveTextContent('Level 03')
-    expect(screen.getByTestId('hud-level-panel')).toHaveTextContent('Steps: 4')
-    expect(screen.getByTestId('hud-level-panel')).toHaveTextContent('Devour Lv.1 yellow')
+    const panel = screen.getByTestId('hud-level-panel')
+
+    expect(panel).toHaveClass('hud__level-panel')
+    expect(panel).toHaveTextContent('Level 03')
+    expect(panel).not.toHaveTextContent('Steps: 4')
+    expect(panel).toHaveTextContent('Devour Lv.1 yellow')
   })
 
   it('does not render an empty combo text bubble for x1 chains', () => {
@@ -247,10 +245,10 @@ describe('HUD', () => {
     const bottomRow = overlay?.querySelector('.hud__bottom-row')
 
     expect(topRow).toHaveStyle({ justifyContent: 'center' })
-    expect(bottomRow).toHaveStyle({ justifyContent: 'flex-end' })
+    expect(bottomRow).toHaveStyle({ justifyContent: 'space-between' })
   })
 
-  it('renders the lobby control as a compact top-corner icon button', () => {
+  it('renders the lobby control as a compact bottom-corner icon button', () => {
     renderWithGameProviders()
 
     const lobbyButton = screen.getByTestId('hud-lobby-button')

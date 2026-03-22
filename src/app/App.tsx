@@ -1,8 +1,10 @@
 import React from 'react'
 
+import { AudioRuntime } from '../audio/AudioRuntime'
+import { audioManager } from '../audio/audioManager'
 import { buildPlayableConfigFromLevel, getLevelById, levelCatalog } from '../game/levels/levelCatalog'
 import { getLevelOneTutorialStep } from '../game/levels/levelOneTutorial'
-import { evaluateLevel, formatObjectiveText } from '../game/levels/levelProgress'
+import { evaluateLevel } from '../game/levels/levelProgress'
 import type { Locale } from '../game/model/types'
 import type { GameStoreSnapshot } from '../game/state/gameStore'
 import { GameStoreProvider, useGameStore } from '../game/state/gameStore'
@@ -19,6 +21,7 @@ const MENU_SETTINGS_STORAGE_KEY = 'cubefight.menu.settings'
 const CAMPAIGN_FINAL_LEVEL_ID = 10
 const PLAYABLE_LEVEL_IDS = levelCatalog.levels.filter((level) => level.id !== 999).map((level) => level.id)
 const DEFAULT_DEBUG_LEVEL_ID = PLAYABLE_LEVEL_IDS[0] ?? 1
+const TUTORIAL_ADVANCE_DELAY_MS = 900
 
 type StoredMenuSettings = {
   debugMode: boolean
@@ -105,9 +108,9 @@ function pickMenuShowcaseLevelId() {
   return showcaseCandidates[Math.floor(Math.random() * showcaseCandidates.length)]
 }
 
-function getTutorialMessage(levelId: number, tutorialInstruction?: string | null): string | null {
+function getTutorialMessage(levelId: number, locale: Locale, tutorialInstruction?: Record<Locale, string> | null): string | null {
   if (levelId === 1 && tutorialInstruction) {
-    return tutorialInstruction
+    return tutorialInstruction[locale]
   }
 
   switch (levelId) {
@@ -141,6 +144,10 @@ function getTutorialAllowedCubeIds(levelId: number, snapshot: GameStoreSnapshot,
 
   const tutorialStep = getLevelOneTutorialStep(tutorialStepIndex).step
 
+  if (tutorialStep.kind === 'info') {
+    return []
+  }
+
   if (snapshot.selectedCubeId) {
     return [snapshot.selectedCubeId, ...snapshot.validTargetIds]
   }
@@ -150,6 +157,10 @@ function getTutorialAllowedCubeIds(levelId: number, snapshot: GameStoreSnapshot,
 
 function getTutorialMarkerCubeIds(snapshot: GameStoreSnapshot, tutorialStepIndex: number): string[] {
   const tutorialStep = getLevelOneTutorialStep(tutorialStepIndex).step
+
+  if (tutorialStep.kind === 'info') {
+    return []
+  }
 
   if (snapshot.selectedCubeId) {
     return tutorialStep.targetCubeId ? [tutorialStep.targetCubeId] : []
@@ -166,12 +177,33 @@ function shouldAutoSolvePause(snapshot: GameStoreSnapshot) {
   return snapshot.overlay !== 'none' || snapshot.runState === 'paused' || snapshot.runState === 'resolving' || snapshot.runState === 'targeting_bomb'
 }
 
+function didCompleteTutorialStep(snapshot: GameStoreSnapshot, tutorialStepIndex: number) {
+  const tutorialStep = getLevelOneTutorialStep(tutorialStepIndex).step
+
+  if (tutorialStep.kind !== 'action' || !tutorialStep.completion) {
+    return false
+  }
+
+  if (snapshot.runState === 'resolving' || snapshot.selectedCubeId !== null) {
+    return false
+  }
+
+  if (tutorialStep.completion.type === 'merge') {
+    return (snapshot.actionStats.mergeCounts[`${tutorialStep.completion.color}:${tutorialStep.completion.nextLevel}`] ?? 0) > 0
+  }
+
+  return (snapshot.actionStats.devourCounts[`${tutorialStep.completion.color}:${tutorialStep.completion.consumedLevel}`] ?? 0) > 0
+}
+
 function SessionOverlay({
   currentLevelId,
   mode,
   rewardCoins,
   canAdvance,
+  canContinue,
+  headlineOverride,
   onAdvance,
+  onContinue,
   onRetry,
   onBackToLobby
 }: {
@@ -179,7 +211,10 @@ function SessionOverlay({
   mode: SessionOverlayState
   rewardCoins: number
   canAdvance: boolean
+  canContinue: boolean
+  headlineOverride?: string | null
   onAdvance: () => void
+  onContinue: () => void
   onRetry: () => void
   onBackToLobby: () => void
 }) {
@@ -193,10 +228,11 @@ function SessionOverlay({
     <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', background: 'rgba(8, 12, 20, 0.42)', pointerEvents: 'auto', zIndex: 30 }}>
       <div style={{ minWidth: 320, maxWidth: 420, borderRadius: 24, border: '1px solid rgba(255,255,255,0.16)', background: 'linear-gradient(180deg, rgba(132,151,160,0.22), rgba(26,35,44,0.32))', boxShadow: '0 18px 42px rgba(6,10,16,0.28)', backdropFilter: 'blur(16px) saturate(140%)', padding: 28, color: '#f7f3ea', textAlign: 'center' }}>
         <div style={{ fontSize: 12, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(244, 241, 234, 0.66)' }}>{`Level ${String(currentLevelId).padStart(2, '0')}`}</div>
-        <h2 style={{ margin: '10px 0 0', fontSize: 34 }}>{mode === 'victory' ? t.hud.victory : t.hud.gameOver}</h2>
+        <h2 style={{ margin: '10px 0 0', fontSize: 34 }}>{headlineOverride ?? (mode === 'victory' ? t.hud.victory : t.hud.gameOver)}</h2>
         {mode === 'victory' ? <div style={{ marginTop: 10, color: '#f3cc7b', fontWeight: 700 }}>{`Reward +${rewardCoins} coins`}</div> : null}
         <div style={{ display: 'grid', gap: 10, marginTop: 22 }}>
           {canAdvance ? <button style={overlayButtonStyle(true)} type="button" onClick={onAdvance}>Next Level</button> : null}
+          {canContinue ? <button style={overlayButtonStyle(false)} type="button" onClick={onContinue}>{t.hud.continueRun}</button> : null}
           <button style={overlayButtonStyle(false)} type="button" onClick={onRetry}>{t.hud.restart}</button>
           <button style={overlayButtonStyle(false)} type="button" onClick={onBackToLobby}>{t.hud.lobby}</button>
         </div>
@@ -221,21 +257,44 @@ function overlayButtonStyle(primary: boolean): React.CSSProperties {
 
 function LevelSessionShell({ currentLevelId, tutorialStepIndex, debugMode, onAdvanceTutorialStep, onBackToLobby, onAdvanceLevel, onRetryLevel, canAdvanceToNextLevel }: { currentLevelId: number; tutorialStepIndex: number; debugMode: boolean; onAdvanceTutorialStep: () => void; onBackToLobby: () => void; onAdvanceLevel: () => void; onRetryLevel: () => void; canAdvanceToNextLevel: boolean }) {
   const snapshot = useGameStore()
+  const { locale, t } = useLocale()
   const level = React.useMemo(() => getLevelById(currentLevelId), [currentLevelId])
   const [sessionOverlay, setSessionOverlay] = React.useState<SessionOverlayState>(null)
   const evaluation = React.useMemo(() => evaluateLevel(snapshot, level), [level, snapshot])
   const tutorialBundle = React.useMemo(() => (currentLevelId === 1 ? getLevelOneTutorialStep(tutorialStepIndex) : null), [currentLevelId, tutorialStepIndex])
-  const tutorialMessage = getTutorialMessage(currentLevelId, tutorialBundle?.step.instruction)
+  const tutorialMessage = getTutorialMessage(currentLevelId, locale, tutorialBundle?.step.instruction)
   const [showHint, setShowHint] = React.useState(false)
   const [autoSolveEnabled, setAutoSolveEnabled] = React.useState(false)
+  const [hasLockedVictory, setHasLockedVictory] = React.useState(false)
+  const [continueAfterGoal, setContinueAfterGoal] = React.useState(false)
+  const tutorialAdvanceTimerRef = React.useRef<number | null>(null)
+  const lastQueuedTutorialStepRef = React.useRef<number | null>(null)
   const tutorialAllowedCubeIds = React.useMemo(() => getTutorialAllowedCubeIds(currentLevelId, snapshot, tutorialStepIndex), [currentLevelId, snapshot, tutorialStepIndex])
   const tutorialMarkerCubeIds = React.useMemo(() => (currentLevelId === 1 ? getTutorialMarkerCubeIds(snapshot, tutorialStepIndex) : []), [currentLevelId, snapshot, tutorialStepIndex])
+
+  const clearTutorialAdvanceTimer = React.useCallback(() => {
+    if (tutorialAdvanceTimerRef.current !== null) {
+      globalThis.clearTimeout(tutorialAdvanceTimerRef.current)
+      tutorialAdvanceTimerRef.current = null
+    }
+  }, [])
 
   React.useEffect(() => {
     if (!debugMode) {
       setAutoSolveEnabled(false)
     }
   }, [debugMode])
+
+  React.useEffect(() => {
+    setHasLockedVictory(false)
+    setContinueAfterGoal(false)
+    clearTutorialAdvanceTimer()
+    lastQueuedTutorialStepRef.current = null
+  }, [clearTutorialAdvanceTimer, currentLevelId, tutorialStepIndex])
+
+  React.useEffect(() => () => {
+    clearTutorialAdvanceTimer()
+  }, [currentLevelId, tutorialStepIndex])
 
   React.useEffect(() => {
     if (!autoSolveEnabled || shouldAutoSolvePause(snapshot)) {
@@ -277,32 +336,47 @@ function LevelSessionShell({ currentLevelId, tutorialStepIndex, debugMode, onAdv
       return
     }
 
-    if (tutorialStepIndex === 0 && (snapshot.actionStats.mergeCounts['blue:2'] ?? 0) > 0) {
-      onAdvanceTutorialStep()
-      return
-    }
+    if (didCompleteTutorialStep(snapshot, tutorialStepIndex)) {
+      if (lastQueuedTutorialStepRef.current === tutorialStepIndex) {
+        return
+      }
 
-    if (tutorialStepIndex === 1 && (snapshot.actionStats.devourCounts['red:1'] ?? 0) > 0) {
-      onAdvanceTutorialStep()
-      return
-    }
+      lastQueuedTutorialStepRef.current = tutorialStepIndex
+      clearTutorialAdvanceTimer()
+      tutorialAdvanceTimerRef.current = globalThis.setTimeout(() => {
+        tutorialAdvanceTimerRef.current = null
+        if (tutorialStepIndex >= 7) {
+          setSessionOverlay('victory')
+          return
+        }
 
-    if (tutorialStepIndex === 2 && (snapshot.actionStats.mergeCounts['yellow:2'] ?? 0) > 0) {
-      onAdvanceTutorialStep()
-      return
+        onAdvanceTutorialStep()
+      }, TUTORIAL_ADVANCE_DELAY_MS)
     }
-
-    if (tutorialStepIndex === 3 && (snapshot.actionStats.devourCounts['red:1'] ?? 0) > 0) {
-      setSessionOverlay('victory')
-    }
-  }, [currentLevelId, onAdvanceTutorialStep, snapshot.actionStats.actionsUsed, tutorialBundle, tutorialStepIndex])
+  }, [clearTutorialAdvanceTimer, currentLevelId, onAdvanceTutorialStep, snapshot, tutorialBundle, tutorialStepIndex])
 
   React.useEffect(() => {
     if (currentLevelId === 1) {
       return
     }
 
+    const hasScoreObjective = level.objectives.some((objective) => objective.type === 'score')
+
     if (evaluation.completed) {
+      setHasLockedVictory(true)
+
+      if (hasScoreObjective && !continueAfterGoal) {
+        setSessionOverlay('victory')
+        return
+      }
+
+      if (!hasScoreObjective) {
+        setSessionOverlay('victory')
+        return
+      }
+    }
+
+    if (hasLockedVictory && (evaluation.failed || snapshot.overlay === 'game_over')) {
       setSessionOverlay('victory')
       return
     }
@@ -313,32 +387,31 @@ function LevelSessionShell({ currentLevelId, tutorialStepIndex, debugMode, onAdv
     }
 
     setSessionOverlay(null)
-  }, [evaluation.completed, evaluation.failed, snapshot.overlay])
+  }, [continueAfterGoal, currentLevelId, evaluation.completed, evaluation.failed, hasLockedVictory, level.objectives, snapshot.overlay])
 
-  const levelInfo = {
-    levelLabel: `${level.id === 999 ? 'Endless' : `Level ${String(level.id).padStart(2, '0')}`}`,
-    stepsRemaining: currentLevelId === 1 ? null : evaluation.stepsRemaining,
-    objectives: currentLevelId === 1 && tutorialBundle
-      ? [{ text: tutorialBundle.step.objectiveText, complete: false }]
-      : evaluation.objectives.map((objective) => ({
-          text: formatObjectiveText(objective),
-          complete: objective.complete
-        }))
-  }
+  const tutorialStep = tutorialBundle?.step
+  const tutorialIsInfoStep = tutorialStep?.kind === 'info'
+  const tutorialContinueLabel = tutorialStep?.continueLabel?.[locale] ?? (locale === 'zh-CN' ? '继续' : 'Continue')
 
   return (
     <>
+      <AudioRuntime scene="game" />
       <GameCanvas allowedCubeIds={tutorialAllowedCubeIds} interactive={sessionOverlay === null} tutorialMarkerCubeIds={tutorialMarkerCubeIds} />
       <HUD
         debugAction={debugMode ? { active: autoSolveEnabled, onToggle: () => setAutoSolveEnabled((value) => !value) } : null}
-        levelInfo={levelInfo}
         onBackToLobby={onBackToLobby}
       />
-      {currentLevelId >= 7 ? <SliceControls /> : null}
+      {currentLevelId !== 1 ? <SliceControls /> : null}
       {currentLevelId === 1 && tutorialMessage && !sessionOverlay ? (
-        <div style={{ position: 'absolute', left: '50%', top: 132, transform: 'translateX(-50%)', width: 'min(560px, calc(100vw - 40px))', borderRadius: 18, border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(8, 14, 24, 0.52)', boxShadow: '0 14px 28px rgba(4,8,14,0.18)', backdropFilter: 'blur(12px) saturate(140%)', padding: '14px 18px', color: '#eef4f8', zIndex: 20, pointerEvents: 'none', textAlign: 'center' }}>
-          <div style={{ fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'rgba(244,241,234,0.62)' }}>Tutorial</div>
+        <div style={{ position: 'absolute', left: '50%', top: 132, transform: 'translateX(-50%)', width: 'min(560px, calc(100vw - 40px))', borderRadius: 18, border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(8, 14, 24, 0.52)', boxShadow: '0 14px 28px rgba(4,8,14,0.18)', backdropFilter: 'blur(12px) saturate(140%)', padding: '14px 18px', color: '#eef4f8', zIndex: 20, pointerEvents: tutorialIsInfoStep ? 'auto' : 'none', textAlign: 'center' }}>
+          <div style={{ fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'rgba(244,241,234,0.62)' }}>{locale === 'zh-CN' ? '教学' : 'Tutorial'}</div>
           <div style={{ marginTop: 8, fontSize: 15, lineHeight: 1.5 }}>{tutorialMessage}</div>
+          {tutorialIsInfoStep ? (
+            <button style={{ ...overlayButtonStyle(true), marginTop: 14, minWidth: 148 }} type="button" onClick={onAdvanceTutorialStep}>{tutorialContinueLabel}</button>
+          ) : null}
+          {tutorialStep?.objectiveText ? (
+            <div style={{ marginTop: 10, fontSize: 12, lineHeight: 1.45, color: 'rgba(244,241,234,0.72)' }}>{tutorialStep.objectiveText[locale]}</div>
+          ) : null}
         </div>
       ) : null}
       {level.generatedHintPath && level.generatedHintPath.length > 0 ? (
@@ -358,11 +431,17 @@ function LevelSessionShell({ currentLevelId, tutorialStepIndex, debugMode, onAdv
       ) : null}
       <SessionOverlay
         canAdvance={sessionOverlay === 'victory' ? canAdvanceToNextLevel : false}
+        canContinue={sessionOverlay === 'victory' && level.objectives.some((objective) => objective.type === 'score') && evaluation.completed && !continueAfterGoal}
         currentLevelId={currentLevelId}
+        headlineOverride={sessionOverlay === 'victory' && level.objectives.some((objective) => objective.type === 'score') && evaluation.completed && !continueAfterGoal ? t.hud.targetReached : null}
         mode={sessionOverlay}
         rewardCoins={level.reward.coins}
         onAdvance={onAdvanceLevel}
         onBackToLobby={onBackToLobby}
+        onContinue={() => {
+          setContinueAfterGoal(true)
+          setSessionOverlay(null)
+        }}
         onRetry={onRetryLevel}
       />
     </>
@@ -429,6 +508,7 @@ function MenuShell({
 
   return (
     <>
+      <AudioRuntime scene="menu" />
       <GameCanvas interactive={false} />
       <MainMenu
         currentLevelLabel={t.menu.currentLevel(formatLevelLabel(currentLevelId))}
@@ -476,7 +556,8 @@ function CampaignRoot() {
 
     return buildPlayableConfigFromLevel(activeLevelId)
   }, [activeLevelId, screen, sessionLevelId, tutorialStepIndex])
-  const storeKey = `${screen}:${activeLevelId}:${runNonce}`
+  const tutorialStoreSegment = screen === 'game' && sessionLevelId === 1 ? `:tutorial-${tutorialStepIndex}` : ''
+  const storeKey = `${screen}:${activeLevelId}:${runNonce}${tutorialStoreSegment}`
   const debugNextLevelId = getNextPlayableLevelId(sessionLevelId)
   const canAdvanceDebugRun = debugMode && debugNextLevelId !== null
   const canAdvanceCampaignRun = !debugMode && sessionLevelId < CAMPAIGN_FINAL_LEVEL_ID
@@ -493,6 +574,7 @@ function CampaignRoot() {
           onLocaleChange={setLocale}
           onSelectedDebugLevelChange={(levelId) => setDebugLevelId(normalizeDebugLevelId(levelId))}
           onStart={() => {
+          void audioManager.playUiConfirm()
           if (selectedMenuLevelId === 1) {
             setTutorialStepIndex(0)
           }
@@ -511,7 +593,6 @@ function CampaignRoot() {
           tutorialStepIndex={tutorialStepIndex}
           onAdvanceTutorialStep={() => {
             setTutorialStepIndex((value) => value + 1)
-            setRunNonce((value) => value + 1)
           }}
           onAdvanceLevel={() => {
             if (debugMode) {

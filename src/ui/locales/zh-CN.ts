@@ -45,6 +45,8 @@ export default {
     pause: '暂停',
     resume: '继续',
     restart: '重新开始',
+    continueRun: '继续刷分',
+    targetReached: '目标已达成',
     paused: '已暂停',
     victory: '胜利',
     gameOver: '游戏结束',

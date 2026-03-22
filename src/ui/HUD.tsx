@@ -1,5 +1,6 @@
 import React from 'react'
 
+import { audioManager } from '../audio/audioManager'
 import type { ComboTextKey } from '../game/model/types'
 import { useGameStore } from '../game/state/gameStore'
 import { useLocale } from './LocaleProvider'
@@ -39,9 +40,17 @@ const statBarStyle: React.CSSProperties = {
 const bottomRowStyle: React.CSSProperties = {
   alignSelf: 'stretch',
   display: 'flex',
-  justifyContent: 'flex-end',
+  justifyContent: 'space-between',
   alignItems: 'flex-end',
   gap: 'var(--hud-gap-lg, 16px)'
+}
+
+const bottomRowRightStyle: React.CSSProperties = {
+  display: 'flex',
+  justifyContent: 'flex-end',
+  alignItems: 'flex-end',
+  gap: 'var(--hud-gap-lg, 16px)',
+  pointerEvents: 'none'
 }
 
 const glassPanelStyle: React.CSSProperties = {
@@ -134,16 +143,16 @@ const debugDockStyle: React.CSSProperties = {
 
 const utilityButtonStyle: React.CSSProperties = {
   pointerEvents: 'auto',
-  position: 'absolute',
-  top: 'var(--hud-padding, 16px)',
-  left: 'var(--hud-padding, 16px)',
   width: 'var(--hud-utility-size, 46px)',
   height: 'var(--hud-utility-size, 46px)',
   appearance: 'none',
   cursor: 'pointer',
   color: '#e7edf2',
-  border: 'none',
-  background: 'radial-gradient(circle, rgba(16, 26, 39, 0.46), rgba(16, 26, 39, 0.08) 72%, rgba(16, 26, 39, 0))',
+  border: '1px solid rgba(255, 255, 255, 0.16)',
+  borderRadius: 16,
+  background: 'linear-gradient(180deg, rgba(122, 142, 150, 0.14), rgba(45, 58, 68, 0.22))',
+  boxShadow: '0 12px 28px rgba(12, 18, 24, 0.18)',
+  backdropFilter: 'blur(14px) saturate(140%)',
   transition: 'transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease'
 }
 
@@ -151,10 +160,10 @@ const objectivePanelStyle: React.CSSProperties = {
   ...glassPanelStyle,
   pointerEvents: 'auto',
   position: 'absolute',
-  top: 'var(--hud-padding, 16px)',
-  right: 'var(--hud-padding, 16px)',
-  width: 'min(280px, calc(100vw - 96px))',
-  padding: '12px 14px'
+  top: 'var(--hud-objective-top, var(--hud-padding, 16px))',
+  right: 'var(--hud-objective-right, var(--hud-padding, 16px))',
+  width: 'var(--hud-objective-width, min(280px, calc(100vw - 96px)))',
+  padding: 'var(--hud-objective-padding, 12px 14px)'
 }
 
 const bombDockDisabledStyle: React.CSSProperties = {
@@ -284,7 +293,6 @@ function GameOverlay({ overlay, title, restartLabel, restartDemo }: {
 export function HUD({ levelInfo, onBackToLobby, debugAction }: { levelInfo?: LevelHudInfo; onBackToLobby: () => void; debugAction?: { active: boolean; onToggle: () => void } | null }) {
   const { t } = useLocale()
   const {
-    bombCount,
     cubes,
     coins,
     comboCount,
@@ -292,35 +300,21 @@ export function HUD({ levelInfo, onBackToLobby, debugAction }: { levelInfo?: Lev
     gridSize,
     overlay,
     restartDemo,
-    runState,
     score,
-    ui,
-    activateBomb,
-    cancelTargeting
+    ui
   } = useGameStore()
 
   const localizedComboText = getComboText(comboText, t.hud.comboTexts)
   const showComboSurface = ui.showCombo && (comboCount > 0 || comboText !== null)
-  const bombVisuallyDisabled = bombCount <= 0
-  const bombInteractionDisabled = overlay !== 'none' || runState === 'resolving'
-  const bombDisabled = bombVisuallyDisabled || bombInteractionDisabled
-  const bombActive = runState === 'targeting_bomb'
   const overlayTitle = overlay === 'victory' ? t.hud.victory : overlay === 'game_over' ? t.hud.gameOver : null
   const boardFillRatio = cubes.length / Math.pow(gridSize, 3)
   const showCrisisGlow = boardFillRatio >= 0.7
 
   return (
     <div className="hud" id="ui-overlay" style={rootStyle}>
-      <button aria-label={t.hud.lobby} data-testid="hud-lobby-button" style={utilityButtonStyle} type="button" onClick={onBackToLobby}>
-        <span aria-hidden="true" style={{ fontSize: 22, lineHeight: 1 }}>⌂</span>
-      </button>
-
       {levelInfo ? (
-        <section data-testid="hud-level-panel" style={objectivePanelStyle}>
+        <section className="hud__level-panel" data-testid="hud-level-panel" style={objectivePanelStyle}>
           <div style={compactLabelStyle}>{levelInfo.levelLabel}</div>
-          {levelInfo.stepsRemaining !== null ? (
-            <div style={{ ...secondaryValueStyle, marginTop: 6 }}>{t.hud.steps}: {levelInfo.stepsRemaining}</div>
-          ) : null}
           <div style={{ marginTop: 8, display: 'grid', gap: 6 }}>
             {levelInfo.objectives.map((objective) => (
               <div key={objective.text} style={{ ...compactLabelStyle, color: objective.complete ? '#b8f3c8' : 'rgba(244, 241, 234, 0.78)', letterSpacing: '0.08em', lineHeight: 1.4 }}>
@@ -345,48 +339,39 @@ export function HUD({ levelInfo, onBackToLobby, debugAction }: { levelInfo?: Lev
       {showCrisisGlow ? <div className="hud__crisis-glow" data-testid="hud-crisis-glow" /> : null}
 
       <div className="hud__bottom-row" data-testid="hud-bottom-row" style={bottomRowStyle}>
-        {debugAction ? (
-          <button
-            aria-label={debugAction.active ? t.hud.stopAutoSolve : t.hud.autoSolve}
-            data-testid="hud-debug-auto-solve"
-            style={{
-              ...debugDockStyle,
-              borderColor: debugAction.active ? 'rgba(133, 228, 184, 0.34)' : 'rgba(255, 255, 255, 0.18)',
-              backgroundImage: debugAction.active
-                ? 'linear-gradient(180deg, rgba(133, 228, 184, 0.18), rgba(45, 88, 69, 0.26))'
-                : debugDockStyle.backgroundImage
-            }}
-            type="button"
-            onClick={debugAction.onToggle}
-          >
-            <div style={compactLabelStyle}>Debug</div>
-            <div style={{ ...secondaryValueStyle, marginTop: 10, fontSize: 20, color: debugAction.active ? '#b8f3c8' : '#dceef9' }}>
+        <button aria-label={t.hud.lobby} className="hud__lobby-button" data-testid="hud-lobby-button" style={utilityButtonStyle} type="button" onClick={() => {
+          void audioManager.playUiConfirm()
+          onBackToLobby()
+        }}>
+          <span aria-hidden="true" style={{ fontSize: 22, lineHeight: 1 }}>⌂</span>
+        </button>
+
+        <div className="hud__bottom-row-right" style={bottomRowRightStyle}>
+          {debugAction ? (
+            <button
+              aria-label={debugAction.active ? t.hud.stopAutoSolve : t.hud.autoSolve}
+              className="hud__debug-dock"
+              data-testid="hud-debug-auto-solve"
+              style={{
+                ...debugDockStyle,
+                borderColor: debugAction.active ? 'rgba(133, 228, 184, 0.34)' : 'rgba(255, 255, 255, 0.18)',
+                backgroundImage: debugAction.active
+                  ? 'linear-gradient(180deg, rgba(133, 228, 184, 0.18), rgba(45, 88, 69, 0.26))'
+                  : debugDockStyle.backgroundImage
+              }}
+              type="button"
+               onClick={() => {
+                 void audioManager.playUiConfirm()
+                 debugAction.onToggle()
+               }}
+             >
+              <div style={compactLabelStyle}>Debug</div>
+              <div style={{ ...secondaryValueStyle, marginTop: 10, fontSize: 20, color: debugAction.active ? '#b8f3c8' : '#dceef9' }}>
               {debugAction.active ? t.hud.stopAutoSolve : t.hud.autoSolve}
             </div>
           </button>
-        ) : null}
-        <button
-          aria-disabled={bombDisabled}
-          aria-label={t.hud.bombs}
-          aria-pressed={bombActive}
-          data-testid="hud-bomb-dock"
-          disabled={bombInteractionDisabled}
-          style={bombDisabled ? bombDockDisabledStyle : bombDockStyle}
-          type="button"
-          onClick={bombActive ? cancelTargeting : () => {
-            if (bombInteractionDisabled) {
-              return
-            }
-
-            activateBomb()
-          }}
-        >
-          <div style={compactLabelStyle}>{t.hud.bombs}</div>
-          <div style={bombCountStyle}>
-            <span style={bombCountValueStyle}>{bombCount}</span>
-          </div>
-          <span aria-hidden="true" className={`hud__bomb-badge${bombActive ? ' is-active' : ''}`}>{bombActive ? '●' : '+'}</span>
-        </button>
+          ) : null}
+        </div>
       </div>
 
       <GameOverlay overlay={overlay} restartDemo={restartDemo} restartLabel={t.hud.restart} title={overlayTitle} />
