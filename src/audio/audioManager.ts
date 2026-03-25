@@ -385,7 +385,7 @@ class AudioManager {
   }
 
   async playSelect() {
-    await this.playSprite('select_blue', { gain: 1, maxInstances: 2 })
+    await this.playSprite('select_blue', { gain: 0.78, maxInstances: 2 })
   }
 
   async playSlice(index: number) {
@@ -395,7 +395,7 @@ class AudioManager {
 
   async playMerge(level: number) {
     this.duckMusic(0.6, 0.5)
-    await this.playSprite(`merge_lv${Math.max(2, Math.min(9, level))}`, { gain: 1.1, maxInstances: 2 })
+    await this.playSprite(`merge_lv${Math.max(2, Math.min(9, level))}`, { gain: 0.94, maxInstances: 2 })
   }
 
   async playDevourRed() {

@@ -130,10 +130,58 @@ export type CreateGameStoreOptions = {
   config?: PlayableDemoConfig
   now?: () => number
   timers?: TimerApi
+  random?: () => number
 }
 
 const MERGE_DURATION_MS = 240
 export const GameStoreContext = createContext<GameStore | null>(null)
+
+function getBoardCapacity(gridSize: number) {
+  return gridSize * gridSize * gridSize
+}
+
+function getEmptyCells(cubes: CubeData[], gridSize: number) {
+  const occupied = new Set(cubes.map((cube) => `${cube.x}:${cube.y}:${cube.z}`))
+  const cells: Array<Pick<CubeData, 'x' | 'y' | 'z'>> = []
+
+  for (let x = 0; x < gridSize; x += 1) {
+    for (let y = 0; y < gridSize; y += 1) {
+      for (let z = 0; z < gridSize; z += 1) {
+        const key = `${x}:${y}:${z}`
+        if (!occupied.has(key)) {
+          cells.push({ x, y, z })
+        }
+      }
+    }
+  }
+
+  return cells
+}
+
+function getHighestBlueLevel(cubes: CubeData[]) {
+  return cubes.reduce((highest, cube) => (cube.color === 'blue' ? Math.max(highest, cube.level) : highest), 0)
+}
+
+function hasValidMerge(cubes: CubeData[]) {
+  return cubes.some((cube) => (cube.color === 'blue' || cube.color === 'yellow') && getValidTargets(cubes, cube.id).some((targetId) => {
+    const target = cubes.find((item) => item.id === targetId)
+    return Boolean(target && target.color === cube.color && target.level === cube.level)
+  }))
+}
+
+function hasValidDevour(cubes: CubeData[]) {
+  return cubes.some((cube) => cube.color === 'blue' && getValidTargets(cubes, cube.id).some((targetId) => {
+    const target = cubes.find((item) => item.id === targetId)
+    return Boolean(target && (target.color === 'red' || target.color === 'yellow') && cube.level >= target.level)
+  }))
+}
+
+function checkEndlessGameOver(cubes: CubeData[], gridSize: number, bombCount: number) {
+  return cubes.length === getBoardCapacity(gridSize)
+    && !hasValidMerge(cubes)
+    && !hasValidDevour(cubes)
+    && bombCount === 0
+}
 
 function cloneCube(cube: CubeData): CubeData {
   return { ...cube }
@@ -162,7 +210,10 @@ function cloneConfig(config: PlayableDemoConfig): PlayableDemoConfig {
     },
     ui: {
       ...config.ui
-    }
+    },
+    endless: config.endless
+      ? { ...config.endless }
+      : undefined
   }
 }
 
@@ -207,12 +258,15 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
     setTimeout: (handler, timeout) => globalThis.setTimeout(handler, timeout),
     clearTimeout: (handle) => globalThis.clearTimeout(handle)
   }
+  const random = options.random ?? (() => Math.random())
   const listeners = new Set<() => void>()
   let data = createInitialData(config)
   let comboTimer: TimeoutHandle | null = null
   let pausedComboRemainingMs: number | null = null
   let resolutionTimer: TimeoutHandle | null = null
+  let refillTimer: TimeoutHandle | null = null
   let cachedSnapshot: GameStoreSnapshot | null = null
+  let endlessSpawnSerial = 0
 
   const getDerived = (selectedCubeId = data.selectedCubeId) => {
     const visibleCubes = data.cubes.filter((cube) => isCubeVisible(cube, data.slice))
@@ -256,7 +310,138 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
     data.comboExpiresAt = null
   }
 
+  const isEndlessMode = () => config.endless?.enabled === true
+
+  const clearRefillTimer = () => {
+    if (!refillTimer) {
+      return
+    }
+
+    timers.clearTimeout(refillTimer)
+    refillTimer = null
+  }
+
+  const getEndlessWeights = () => {
+    const endless = config.endless
+    if (!endless) {
+      return null
+    }
+
+    const pressureTier = Math.min(5, Math.floor(data.score / 600))
+    const pressureShift = pressureTier * 4
+    return {
+      redWeight: endless.redWeight + pressureShift,
+      yellowWeight: Math.max(5, endless.yellowWeight - Math.max(0, pressureTier - 2) * 2),
+      blueWeight: Math.max(5, endless.blueWeight - pressureShift)
+    }
+  }
+
+  const pickEndlessSpawnColor = (): CubeData['color'] => {
+    const weights = getEndlessWeights()
+    if (!weights) {
+      return 'red'
+    }
+
+    const totalWeight = weights.redWeight + weights.yellowWeight + weights.blueWeight
+    let roll = random() * totalWeight
+    if (roll < weights.redWeight) {
+      return 'red'
+    }
+    roll -= weights.redWeight
+    if (roll < weights.yellowWeight) {
+      return 'yellow'
+    }
+    return 'blue'
+  }
+
+  const spawnEndlessRefillCube = () => {
+    const emptyCells = getEmptyCells(data.cubes, config.board.gridSize)
+    if (emptyCells.length === 0) {
+      return false
+    }
+
+    const cell = emptyCells[Math.floor(random() * emptyCells.length)]
+    const highestBlueLevel = getHighestBlueLevel(data.cubes)
+    const maxSpawnLevel = Math.max(1, highestBlueLevel - 1)
+    const level = 1 + Math.floor(random() * maxSpawnLevel)
+
+    data.cubes = [
+      ...data.cubes,
+      {
+        id: `endless_spawn_${String(endlessSpawnSerial).padStart(4, '0')}`,
+        color: pickEndlessSpawnColor(),
+        level,
+        x: cell.x,
+        y: cell.y,
+        z: cell.z
+      }
+    ]
+    endlessSpawnSerial += 1
+    return true
+  }
+
+  const scheduleEndlessRefillIfNeeded = () => {
+    const endless = config.endless
+    if (!isEndlessMode() || !endless) {
+      syncInteractiveFlow()
+      emit()
+      return
+    }
+
+    clearRefillTimer()
+    const hasEmptyCell = data.cubes.length < getBoardCapacity(config.board.gridSize)
+    const shouldSpawnThisTurn = data.actionStats.actionsUsed % endless.spawnIntervalSteps === 0
+
+    if (!hasEmptyCell || !shouldSpawnThisTurn) {
+      syncInteractiveFlow()
+      emit()
+      return
+    }
+
+    data.runState = 'resolving'
+    data.overlay = 'none'
+    data.resumeTargetState = null
+    data.statusHintKey = 'resolving'
+    emit()
+
+    refillTimer = timers.setTimeout(() => {
+      refillTimer = null
+      spawnEndlessRefillCube()
+      syncInteractiveFlow()
+      emit()
+    }, endless.refillDelayMs)
+  }
+
   const syncInteractiveFlow = () => {
+    if (isEndlessMode()) {
+      if (checkEndlessGameOver(data.cubes, config.board.gridSize, data.bombCount)) {
+        data.matchResult = { kind: 'game_over' }
+        data.runState = 'game_over'
+        data.overlay = 'game_over'
+        data.resumeTargetState = null
+        clearComboState()
+        applyStatusHint('game_over')
+        return
+      }
+
+      const derived = getDerived()
+      data.matchResult = { kind: 'in_progress' }
+      data.runState = data.selectedCubeId ? 'selected' : 'idle'
+      data.overlay = 'none'
+      data.resumeTargetState = null
+      data.statusHintKey = deriveStatusHintKey({
+        runState: data.runState,
+        overlay: data.overlay,
+        bombCount: data.bombCount,
+        selectedCubeId: data.selectedCubeId,
+        validTargetIds: derived.validTargetIds,
+        bombTargetIds: derived.bombTargetIds,
+        matchResult: data.matchResult,
+        hasHiddenLegalMoves: hasHiddenLegalMoves()
+      })
+      return
+    }
+
     const { validTargetIds } = getDerived()
     const nextFlow = evaluatePostAction({
       cubes: data.cubes,
@@ -340,9 +525,8 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
     data.selectedCubeId = null
     data.mergeAnimation = null
     data.score += awardedScore
-    syncInteractiveFlow()
     resolutionTimer = null
-    emit()
+    scheduleEndlessRefillIfNeeded()
   }
 
   const commitBombTarget = (targetId: string) => {
@@ -463,8 +647,7 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
     }
     data.selectedCubeId = null
     data.mergeAnimation = null
-    syncInteractiveFlow()
-    emit()
+    scheduleEndlessRefillIfNeeded()
   }
 
   const pauseGame = () => {
@@ -536,8 +719,10 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
   const restartDemo = () => {
     clearComboTimer()
     clearResolutionTimer()
+    clearRefillTimer()
     pausedComboRemainingMs = null
     data = createInitialData(config)
+    endlessSpawnSerial = 0
     syncInteractiveFlow()
     emit()
   }

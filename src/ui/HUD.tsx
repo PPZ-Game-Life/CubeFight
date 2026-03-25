@@ -107,12 +107,6 @@ const secondaryValueStyle: React.CSSProperties = {
   color: '#edf1ea'
 }
 
-const coinsValueStyle: React.CSSProperties = {
-  ...secondaryValueStyle,
-  color: '#f0c37b',
-  textShadow: '0 0 14px rgba(255, 196, 95, 0.18)'
-}
-
 const bombDockStyle: React.CSSProperties = {
   ...glassPanelStyle,
   pointerEvents: 'auto',
@@ -249,17 +243,12 @@ function StatCard({ label, value, style }: { label: string; value: React.ReactNo
   )
 }
 
-function ScorePill({ score, coins, scoreLabel, coinsLabel }: { score: number; coins: number; scoreLabel: string; coinsLabel: string }) {
+function ScorePill({ score, scoreLabel }: { score: number; scoreLabel: string }) {
   return (
     <section className="hud__score-pill" data-testid="hud-score-hero" style={scorePillStyle}>
       <div className="hud__score-pill-side hud__score-pill-side--score">
         <div style={compactLabelStyle}>{scoreLabel}</div>
         <div style={scoreValueStyle}>{score}</div>
-      </div>
-      <div aria-hidden="true" className="hud__score-pill-divider" />
-      <div className="hud__score-pill-side hud__score-pill-side--coins">
-        <div style={compactLabelStyle}>{coinsLabel}</div>
-        <div style={coinsValueStyle}>{coins}</div>
       </div>
     </section>
   )
@@ -290,11 +279,20 @@ function GameOverlay({ overlay, title, restartLabel, restartDemo }: {
   )
 }
 
-export function HUD({ levelInfo, onBackToLobby, debugAction }: { levelInfo?: LevelHudInfo; onBackToLobby: () => void; debugAction?: { active: boolean; onToggle: () => void } | null }) {
+export function HUD({
+  levelInfo,
+  onBackToLobby,
+  debugAction,
+  suppressResultOverlay = false
+}: {
+  levelInfo?: LevelHudInfo
+  onBackToLobby: () => void
+  debugAction?: { active: boolean; onToggle: () => void } | null
+  suppressResultOverlay?: boolean
+}) {
   const { t } = useLocale()
   const {
     cubes,
-    coins,
     comboCount,
     comboText,
     gridSize,
@@ -304,9 +302,11 @@ export function HUD({ levelInfo, onBackToLobby, debugAction }: { levelInfo?: Lev
     ui
   } = useGameStore()
 
+  const effectiveOverlay = suppressResultOverlay && (overlay === 'victory' || overlay === 'game_over') ? 'none' : overlay
+
   const localizedComboText = getComboText(comboText, t.hud.comboTexts)
   const showComboSurface = ui.showCombo && (comboCount > 0 || comboText !== null)
-  const overlayTitle = overlay === 'victory' ? t.hud.victory : overlay === 'game_over' ? t.hud.gameOver : null
+  const overlayTitle = effectiveOverlay === 'victory' ? t.hud.victory : effectiveOverlay === 'game_over' ? t.hud.gameOver : null
   const boardFillRatio = cubes.length / Math.pow(gridSize, 3)
   const showCrisisGlow = boardFillRatio >= 0.7
 
@@ -326,7 +326,7 @@ export function HUD({ levelInfo, onBackToLobby, debugAction }: { levelInfo?: Lev
       ) : null}
 
       <div className="hud__stat-bar" data-testid="hud-stat-bar" style={statBarStyle}>
-        <ScorePill coins={coins} coinsLabel={t.coins} score={score} scoreLabel={t.hud.score} />
+        <ScorePill score={score} scoreLabel={t.hud.score} />
       </div>
 
       {showComboSurface ? (
@@ -374,7 +374,7 @@ export function HUD({ levelInfo, onBackToLobby, debugAction }: { levelInfo?: Lev
         </div>
       </div>
 
-      <GameOverlay overlay={overlay} restartDemo={restartDemo} restartLabel={t.hud.restart} title={overlayTitle} />
+      <GameOverlay overlay={effectiveOverlay} restartDemo={restartDemo} restartLabel={t.hud.restart} title={overlayTitle} />
     </div>
   )
 }

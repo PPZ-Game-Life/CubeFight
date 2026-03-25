@@ -72,6 +72,15 @@ export interface PlayableDemoUiConfig {
   sliceLayout: PlayableDemoSliceLayout
 }
 
+export interface PlayableDemoEndlessConfig {
+  enabled: boolean
+  refillDelayMs: number
+  spawnIntervalSteps: number
+  redWeight: number
+  yellowWeight: number
+  blueWeight: number
+}
+
 export interface PlayableDemoConfig {
   board: PlayableDemoBoardConfig
   inventory: PlayableDemoInventoryConfig
@@ -79,6 +88,7 @@ export interface PlayableDemoConfig {
   scoring: PlayableDemoScoringConfig
   winLoss: PlayableDemoWinLossConfig
   ui: PlayableDemoUiConfig
+  endless?: PlayableDemoEndlessConfig
 }
 
 export type MatchResult =

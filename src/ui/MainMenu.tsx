@@ -6,28 +6,34 @@ import { useLocale } from './LocaleProvider'
 
 type MainMenuProps = {
   currentLevelLabel?: string
+  tutorialCompleted?: boolean
   endlessUnlocked?: boolean
   locale: Locale
   debugMode: boolean
   selectableLevels: number[]
   selectedLevelId: number
-  onStart: () => void
+  onStartCampaign: () => void
+  onStartEndless: () => void
   onLocaleChange: (locale: Locale) => void
   onDebugModeChange: (enabled: boolean) => void
   onSelectedLevelChange: (levelId: number) => void
+  onResetTutorialProgress: () => void
 }
 
 export function MainMenu({
   currentLevelLabel,
+  tutorialCompleted,
   endlessUnlocked,
   locale,
   debugMode,
   selectableLevels,
   selectedLevelId,
-  onStart,
+  onStartCampaign,
+  onStartEndless,
   onLocaleChange,
   onDebugModeChange,
-  onSelectedLevelChange
+  onSelectedLevelChange,
+  onResetTutorialProgress
 }: MainMenuProps) {
   const { t } = useLocale()
   const [settingsOpen, setSettingsOpen] = React.useState(false)
@@ -63,10 +69,23 @@ export function MainMenu({
 
       <main className="main-menu__centerpiece">
         <div className="main-menu__action-stack" data-testid="main-menu-actions">
-          <button className="main-menu__action main-menu__action--play" data-testid="main-menu-start" type="button" onClick={onStart}>
-            <span className="main-menu__action-title">{t.menu.startJourney}</span>
-            <span className="main-menu__action-subtitle">{currentLevelLabel ?? t.menu.currentLevel('Level 01')}</span>
-          </button>
+          {tutorialCompleted ? (
+            <>
+              <button className="main-menu__action main-menu__action--play" data-testid="main-menu-start-campaign" type="button" onClick={onStartCampaign}>
+                <span className="main-menu__action-title">{t.menu.campaignMode}</span>
+                <span className="main-menu__action-subtitle">{currentLevelLabel ?? t.menu.currentLevel('Level 02')}</span>
+              </button>
+              <button className="main-menu__action main-menu__action--secondary" data-testid="main-menu-start-endless" type="button" onClick={onStartEndless}>
+                <span className="main-menu__action-title">{t.menu.endlessMode}</span>
+                <span className="main-menu__action-subtitle">{t.menu.endlessHint}</span>
+              </button>
+            </>
+          ) : (
+            <button className="main-menu__action main-menu__action--play" data-testid="main-menu-start" type="button" onClick={onStartCampaign}>
+              <span className="main-menu__action-title">{t.menu.startJourney}</span>
+              <span className="main-menu__action-subtitle">{currentLevelLabel ?? t.menu.currentLevel('Level 01')}</span>
+            </button>
+          )}
 
           <button className="main-menu__action main-menu__action--secondary" type="button" onClick={() => void audioManager.playUiConfirm()}>
             <span className="main-menu__action-title">{t.menu.leaderboard}</span>
@@ -156,6 +175,19 @@ export function MainMenu({
                     <option key={levelId} value={levelId}>{`Level ${String(levelId).padStart(2, '0')}`}</option>
                   ))}
                 </select>
+              </section>
+            ) : null}
+
+            {debugMode ? (
+              <section className="main-menu__settings-section">
+                <button className="main-menu__action main-menu__action--secondary" data-testid="main-menu-reset-tutorial-progress" type="button" onClick={() => {
+                  void audioManager.playUiConfirm()
+                  onResetTutorialProgress()
+                  setSettingsOpen(false)
+                }}>
+                  <span className="main-menu__action-title">{t.menu.resetTutorialProgress}</span>
+                  <span className="main-menu__action-subtitle">{t.menu.resetTutorialProgressHint}</span>
+                </button>
               </section>
             ) : null}
           </div>

@@ -265,7 +265,7 @@ export function buildPlayableConfigFromLevel(levelId: number): PlayableDemoConfi
   return {
     ...baseConfig,
     board: {
-      gridSize: level.gridSize,
+      gridSize: level.id === 999 ? 3 : level.gridSize,
       cubes: level.initialMap.map((cube, index) => ({ ...cube, id: `lvl${level.id.toString().padStart(2, '0')}_${index.toString().padStart(3, '0')}` }))
     },
     inventory: {
@@ -279,6 +279,16 @@ export function buildPlayableConfigFromLevel(levelId: number): PlayableDemoConfi
     winLoss: {
       ...baseConfig.winLoss,
       victory: usesClearAllRed ? 'clear_all_red' : 'none'
-    }
+    },
+    endless: level.id === 999 && level.dynamicParams
+      ? {
+          enabled: true,
+          refillDelayMs: 300,
+          spawnIntervalSteps: Math.max(1, level.dynamicParams.spawnIntervalSteps),
+          redWeight: Math.max(0, level.dynamicParams.redWeight),
+          yellowWeight: Math.max(0, level.dynamicParams.yellowWeight),
+          blueWeight: Math.max(0, 100 - level.dynamicParams.redWeight - level.dynamicParams.yellowWeight)
+        }
+      : undefined
   }
 }

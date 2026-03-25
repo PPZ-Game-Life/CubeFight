@@ -432,7 +432,8 @@ function buildSfxSprite() {
     addTone(buffer, sr, { start: 0, duration, fromFrequency: freq('B6'), toFrequency: freq('E5'), gain: 0.34, type: 'square', decay: 0.04, sustain: 0.28, release: 0.03 });
   });
   pushCue('select_blue', 0.09, (buffer, sr, duration) => {
-    addTone(buffer, sr, { start: 0, duration, fromFrequency: freq('D5'), toFrequency: freq('A5'), gain: 0.31, type: 'pulse', duty: 0.25, decay: 0.03, sustain: 0.24, release: 0.02 });
+    addTone(buffer, sr, { start: 0, duration, fromFrequency: freq('E5'), toFrequency: freq('B5'), gain: 0.2, type: 'triangle', attack: 0.004, decay: 0.022, sustain: 0.2, release: 0.028 });
+    addTone(buffer, sr, { start: 0.01, duration: duration * 0.45, fromFrequency: freq('B5'), gain: 0.045, type: 'triangle', attack: 0.002, decay: 0.014, sustain: 0.12, release: 0.018 });
   });
 
   for (let level = 2; level <= 9; level += 1) {
@@ -446,11 +447,24 @@ function buildSfxSprite() {
           start: index * stepDuration,
           duration: stepDuration,
           fromFrequency: freq(notes[index]) * 2 ** (semitoneShift / 12),
-          gain: 0.28,
-          type: 'square',
-          decay: 0.025,
-          sustain: 0.28,
-          release: 0.02,
+          gain: 0.2,
+          type: 'triangle',
+          attack: 0.003,
+          decay: 0.02,
+          sustain: 0.22,
+          release: 0.026,
+        });
+
+        addTone(buffer, sr, {
+          start: index * stepDuration + 0.004,
+          duration: stepDuration * 0.72,
+          fromFrequency: freq(notes[index]) * 2 ** (semitoneShift / 12) * 2,
+          gain: 0.032,
+          type: 'triangle',
+          attack: 0.002,
+          decay: 0.014,
+          sustain: 0.12,
+          release: 0.018,
         });
       }
     });

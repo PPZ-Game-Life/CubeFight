@@ -119,6 +119,7 @@ export function validatePlayableDemoConfig(config: unknown): PlayableDemoConfigE
   const scoring = isRecord(config.scoring) ? config.scoring : null
   const winLoss = isRecord(config.winLoss) ? config.winLoss : null
   const ui = isRecord(config.ui) ? config.ui : null
+  const endless = config.endless === undefined ? null : (isRecord(config.endless) ? config.endless : null)
 
   const gridSize = typeof board?.gridSize === 'number' ? board.gridSize : null
   const cubes: CubeData[] = []
@@ -216,6 +217,29 @@ export function validatePlayableDemoConfig(config: unknown): PlayableDemoConfigE
 
   if (ui?.sliceLayout !== 'current-implementation') {
     errors.push(new PlayableDemoConfigError('Playable demo config requires ui.sliceLayout to be current-implementation.'))
+  }
+
+  if (config.endless !== undefined) {
+    if (!endless) {
+      errors.push(new PlayableDemoConfigError('Playable demo config endless section must be an object when provided.'))
+    } else {
+      if (endless.enabled !== true) {
+        errors.push(new PlayableDemoConfigError('Playable demo config endless.enabled must be true when endless config is provided.'))
+      }
+      if (!isPositiveFiniteNumber(endless.refillDelayMs)) {
+        errors.push(new PlayableDemoConfigError('Playable demo config endless.refillDelayMs must be a positive finite number.'))
+      }
+      if (!isPositiveInteger(endless.spawnIntervalSteps)) {
+        errors.push(new PlayableDemoConfigError('Playable demo config endless.spawnIntervalSteps must be a positive integer.'))
+      }
+      if (!isNonNegativeFiniteNumber(endless.redWeight) || !isNonNegativeFiniteNumber(endless.yellowWeight) || !isNonNegativeFiniteNumber(endless.blueWeight)) {
+        errors.push(new PlayableDemoConfigError('Playable demo config endless weights must be finite non-negative numbers.'))
+      }
+      const weightSum = Number(endless.redWeight ?? 0) + Number(endless.yellowWeight ?? 0) + Number(endless.blueWeight ?? 0)
+      if (!(weightSum > 0)) {
+        errors.push(new PlayableDemoConfigError('Playable demo config endless weights must sum to a positive number.'))
+      }
+    }
   }
 
   if (gridSize !== null && SUPPORTED_PLAYABLE_DEMO_GRID_SIZES.includes(gridSize as (typeof SUPPORTED_PLAYABLE_DEMO_GRID_SIZES)[number])) {

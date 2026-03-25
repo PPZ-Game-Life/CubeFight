@@ -112,7 +112,10 @@ export function buildPlayableDemoConfig(): PlayableDemoConfig {
     },
     ui: {
       ...PLAYABLE_DEMO_CONFIG_TEMPLATE.ui
-    }
+    },
+    endless: PLAYABLE_DEMO_CONFIG_TEMPLATE.endless
+      ? { ...PLAYABLE_DEMO_CONFIG_TEMPLATE.endless }
+      : undefined
   }
 }
 
