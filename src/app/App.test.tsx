@@ -81,7 +81,7 @@ describe('App main menu flow', () => {
     fireEvent.click(screen.getByTestId('main-menu-start'))
 
     expect(screen.getByRole('button', { name: '继续' })).toBeInTheDocument()
-    expect(screen.getByText(/这是蓝色方块/i)).toBeInTheDocument()
+    expect(screen.getByText(/这个蓝色方块代表你的势力/i)).toBeInTheDocument()
   })
 
   it('allows selecting any authored level after enabling debug mode', () => {

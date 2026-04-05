@@ -4,7 +4,7 @@ import { AudioRuntime } from '../audio/AudioRuntime'
 import { audioManager } from '../audio/audioManager'
 import { buildPlayableConfigFromLevel, getLevelById, levelCatalog } from '../game/levels/levelCatalog'
 import { buildPlayableDemoConfig } from '../game/config/playableDemo'
-import { getLevelOneTutorialStep } from '../game/levels/levelOneTutorial'
+import { getLevelOneTutorialStep, LEVEL_ONE_TUTORIAL_STEP_COUNT } from '../game/levels/levelOneTutorial'
 import { evaluateLevel } from '../game/levels/levelProgress'
 import type { Locale } from '../game/model/types'
 import { getValidTargets } from '../game/state/demoRules'
@@ -399,7 +399,7 @@ function LevelSessionShell({ currentLevelId, tutorialStepIndex, debugMode, onAdv
       clearTutorialAdvanceTimer()
       tutorialAdvanceTimerRef.current = globalThis.setTimeout(() => {
         tutorialAdvanceTimerRef.current = null
-        if (tutorialStepIndex >= 7) {
+        if (tutorialStepIndex >= LEVEL_ONE_TUTORIAL_STEP_COUNT - 1) {
           onCompleteTutorial()
           setSessionOverlay('tutorial_complete')
           return
@@ -468,7 +468,7 @@ function LevelSessionShell({ currentLevelId, tutorialStepIndex, debugMode, onAdv
   return (
     <>
       <AudioRuntime scene="game" />
-      <GameCanvas allowedCubeIds={tutorialAllowedCubeIds} interactive={sessionOverlay === null} tutorialMarkerCubeIds={tutorialMarkerCubeIds} />
+      <GameCanvas allowedCubeIds={tutorialAllowedCubeIds} centerVisibleCubes={currentLevelId === 1} interactive={sessionOverlay === null} tutorialMarkerCubeIds={tutorialMarkerCubeIds} />
       <HUD
         debugAction={debugMode ? { active: autoSolveEnabled, onToggle: () => setAutoSolveEnabled((value) => !value) } : null}
         onBackToLobby={onBackToLobby}
