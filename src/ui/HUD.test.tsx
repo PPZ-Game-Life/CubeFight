@@ -6,7 +6,7 @@ import { buildNoMoveBoardWithRed, buildPlayableDemoConfig } from '../game/config
 import type { CubeData, Locale, PlayableDemoConfig } from '../game/model/types'
 import { createGameStore, GameStoreContext, type GameStore } from '../game/state/gameStore'
 import { LocaleProvider } from './LocaleProvider'
-import { HUD } from './HUD'
+import { getFpsColor, HUD } from './HUD'
 
 function cube(overrides: Partial<CubeData> & Pick<CubeData, 'id' | 'color'>): CubeData {
   return {
@@ -157,10 +157,24 @@ describe('HUD', () => {
 
     expect(screen.getByTestId('hud-stat-bar')).toBeInTheDocument()
     expect(screen.getByTestId('hud-score-hero')).toBeInTheDocument()
+    expect(screen.getByTestId('hud-fps-panel')).toBeInTheDocument()
     expect(screen.getByTestId('hud-lobby-button')).toBeInTheDocument()
     expect(screen.queryByTestId('hud-bomb-dock')).not.toBeInTheDocument()
     expect(screen.getByTestId('hud-bottom-row')).toBeInTheDocument()
     expect(screen.queryByLabelText('Hammer')).not.toBeInTheDocument()
+  })
+
+  it('renders localized fps label in the top-right diagnostics panel', () => {
+    renderWithGameProviders({ locale: 'zh-CN' })
+
+    expect(screen.getByTestId('hud-fps-panel')).toHaveTextContent('帧率')
+  })
+
+  it('maps fps values to traffic-light colors', () => {
+    expect(getFpsColor(29)).toBe('#ff9b9b')
+    expect(getFpsColor(30)).toBe('#ffe08a')
+    expect(getFpsColor(54)).toBe('#ffe08a')
+    expect(getFpsColor(55)).toBe('#b8f3c8')
   })
 
   it('routes the lobby button to the supplied callback', () => {

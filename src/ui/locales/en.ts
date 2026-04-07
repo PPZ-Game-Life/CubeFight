@@ -40,6 +40,7 @@ export default {
   },
   hud: {
     lobby: 'Lobby',
+    fps: 'FPS',
     score: 'Score',
     steps: 'Steps',
     combo: 'Combo',

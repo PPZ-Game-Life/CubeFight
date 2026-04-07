@@ -40,6 +40,7 @@ export default {
   },
   hud: {
     lobby: '大厅',
+    fps: '帧率',
     score: '积分',
     steps: '步数',
     combo: '连击',

@@ -152,12 +152,26 @@ const utilityButtonStyle: React.CSSProperties = {
 
 const objectivePanelStyle: React.CSSProperties = {
   ...glassPanelStyle,
-  pointerEvents: 'auto',
+  width: 'var(--hud-objective-width, min(280px, calc(100vw - 96px)))',
+  padding: 'var(--hud-objective-padding, 12px 14px)'
+}
+
+const topRightStackStyle: React.CSSProperties = {
   position: 'absolute',
   top: 'var(--hud-objective-top, var(--hud-padding, 16px))',
   right: 'var(--hud-objective-right, var(--hud-padding, 16px))',
-  width: 'var(--hud-objective-width, min(280px, calc(100vw - 96px)))',
-  padding: 'var(--hud-objective-padding, 12px 14px)'
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'flex-end',
+  gap: 'var(--hud-gap-sm, 8px)',
+  pointerEvents: 'none'
+}
+
+const fpsPanelStyle: React.CSSProperties = {
+  ...glassPanelStyle,
+  minWidth: 72,
+  padding: '8px 12px 10px',
+  pointerEvents: 'none'
 }
 
 const bombDockDisabledStyle: React.CSSProperties = {
@@ -254,6 +268,64 @@ function ScorePill({ score, scoreLabel }: { score: number; scoreLabel: string })
   )
 }
 
+function useFpsCounter() {
+  const [fps, setFps] = React.useState(0)
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.requestAnimationFrame !== 'function') {
+      return
+    }
+
+    let frameCount = 0
+    let lastSampleTime = performance.now()
+    let frameId = 0
+
+    const tick = (now: number) => {
+      frameCount += 1
+
+      const elapsed = now - lastSampleTime
+      if (elapsed >= 500) {
+        setFps(Math.round((frameCount * 1000) / elapsed))
+        frameCount = 0
+        lastSampleTime = now
+      }
+
+      frameId = window.requestAnimationFrame(tick)
+    }
+
+    frameId = window.requestAnimationFrame(tick)
+
+    return () => {
+      window.cancelAnimationFrame(frameId)
+    }
+  }, [])
+
+  return fps
+}
+
+export function getFpsColor(fps: number) {
+  if (fps >= 55) {
+    return '#b8f3c8'
+  }
+
+  if (fps >= 30) {
+    return '#ffe08a'
+  }
+
+  return '#ff9b9b'
+}
+
+function FpsPanel({ label, fps }: { label: string; fps: number }) {
+  const fpsColor = getFpsColor(fps)
+
+  return (
+    <section className="hud__fps-panel" data-testid="hud-fps-panel" style={fpsPanelStyle}>
+      <div style={compactLabelStyle}>{label}</div>
+      <div style={{ ...secondaryValueStyle, marginTop: 6, fontSize: 20, color: fpsColor }}>{fps}</div>
+    </section>
+  )
+}
+
 function GameOverlay({ overlay, title, restartLabel, restartDemo }: {
   overlay: 'none' | 'pause' | 'victory' | 'game_over'
   title: string | null
@@ -291,6 +363,7 @@ export function HUD({
   suppressResultOverlay?: boolean
 }) {
   const { t } = useLocale()
+  const fps = useFpsCounter()
   const {
     cubes,
     comboCount,
@@ -312,18 +385,22 @@ export function HUD({
 
   return (
     <div className="hud" id="ui-overlay" style={rootStyle}>
-      {levelInfo ? (
-        <section className="hud__level-panel" data-testid="hud-level-panel" style={objectivePanelStyle}>
-          <div style={compactLabelStyle}>{levelInfo.levelLabel}</div>
-          <div style={{ marginTop: 8, display: 'grid', gap: 6 }}>
-            {levelInfo.objectives.map((objective) => (
-              <div key={objective.text} style={{ ...compactLabelStyle, color: objective.complete ? '#b8f3c8' : 'rgba(244, 241, 234, 0.78)', letterSpacing: '0.08em', lineHeight: 1.4 }}>
-                {objective.complete ? 'OK ' : ''}{objective.text}
-              </div>
-            ))}
-          </div>
-        </section>
-      ) : null}
+      <div className="hud__top-right-stack" style={topRightStackStyle}>
+        <FpsPanel fps={fps} label={t.hud.fps} />
+
+        {levelInfo ? (
+          <section className="hud__level-panel" data-testid="hud-level-panel" style={objectivePanelStyle}>
+            <div style={compactLabelStyle}>{levelInfo.levelLabel}</div>
+            <div style={{ marginTop: 8, display: 'grid', gap: 6 }}>
+              {levelInfo.objectives.map((objective) => (
+                <div key={objective.text} style={{ ...compactLabelStyle, color: objective.complete ? '#b8f3c8' : 'rgba(244, 241, 234, 0.78)', letterSpacing: '0.08em', lineHeight: 1.4 }}>
+                  {objective.complete ? 'OK ' : ''}{objective.text}
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
+      </div>
 
       <div className="hud__stat-bar" data-testid="hud-stat-bar" style={statBarStyle}>
         <ScorePill score={score} scoreLabel={t.hud.score} />
