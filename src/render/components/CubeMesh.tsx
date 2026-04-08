@@ -16,73 +16,8 @@ function easeOutCubic(t: number) {
   return 1 - Math.pow(1 - t, 3)
 }
 
-function levelPhase(level: number) {
-  return level <= 3 ? 'awakening' : level <= 6 ? 'forming' : level <= 8 ? 'critical' : 'mythic'
-}
-
-function createLevelGeometry(level: number) {
-  if (level <= 2) return new THREE.SphereGeometry(0.18, 24, 24)
-  if (level === 3) return new THREE.OctahedronGeometry(0.22, 0)
-  if (level <= 5) return new RoundedBoxGeometry(0.34, 0.34, 0.34, 5, 0.08)
-  if (level === 6) return new THREE.TorusKnotGeometry(0.14, 0.045, 80, 12)
-  if (level <= 8) return new THREE.DodecahedronGeometry(0.24, 0)
-  return new THREE.IcosahedronGeometry(0.28, 1)
-}
-
-function createSecondaryGeometry(level: number) {
-  if (level < 4) return null
-  if (level <= 6) return new RoundedBoxGeometry(0.22, 0.22, 0.22, 4, 0.05)
-  return new THREE.OctahedronGeometry(0.18, level >= 7 ? 1 : 0)
-}
-
 function createShellGeometry() {
   return new RoundedBoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE, 6, 0.17)
-}
-
-function levelCoreScale(level: number) {
-  if (level <= 3) return 0.72
-  if (level <= 6) return 0.92
-  if (level <= 8) return 1.02
-  return 1.16
-}
-
-function createEnergyMaterial(primaryColor: THREE.Color, secondaryColor: THREE.Color) {
-  return new THREE.ShaderMaterial({
-    uniforms: {
-      uTime: { value: 0 },
-      uPrimary: { value: primaryColor },
-      uSecondary: { value: secondaryColor }
-    },
-    vertexShader: `
-      varying vec3 vPosition;
-      varying vec3 vNormal;
-      void main() {
-        vPosition = position;
-        vNormal = normalize(normalMatrix * normal);
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-      }
-    `,
-    fragmentShader: `
-      uniform float uTime;
-      uniform vec3 uPrimary;
-      uniform vec3 uSecondary;
-      varying vec3 vPosition;
-      varying vec3 vNormal;
-      void main() {
-        float radial = length(vPosition.xy);
-        float swirl = sin((vPosition.y * 16.0) + (vPosition.z * 10.0) - uTime * 2.4);
-        float pulse = 0.55 + 0.45 * sin(uTime * 3.2 + radial * 18.0);
-        float flow = smoothstep(-0.4, 0.9, swirl);
-        float fresnel = pow(1.0 - abs(vNormal.z), 2.0);
-        vec3 color = mix(uPrimary, uSecondary, flow);
-        color += uSecondary * pulse * 0.35;
-        float alpha = 0.72 + fresnel * 0.18;
-        gl_FragColor = vec4(color, alpha);
-      }
-    `,
-    transparent: true,
-    depthWrite: false
-  })
 }
 
 function createRimMaterial(color: THREE.Color) {
@@ -119,7 +54,18 @@ function createRimMaterial(color: THREE.Color) {
   })
 }
 
-function factionVisuals(color: CubeData['color']) {
+function factionVisuals(cube: CubeData) {
+  if (cube.variant === 'golden') {
+    return {
+      shellTint: '#fff0b0',
+      coreAccent: '#ffd54a',
+      shellTransmission: 0.7,
+      shellRoughness: 0.16,
+      shellOpacity: 0.98
+    }
+  }
+
+  const color = cube.color
   if (color === 'blue') {
     return {
       shellTint: '#d7f2ff',
@@ -158,6 +104,23 @@ const faceConfigs = [
   { key: 'bottom', position: [0, -CUBE_SIZE * 0.52, 0], normal: new THREE.Vector3(0, -1, 0) }
 ] as const
 
+const reducedFaceConfigs = [faceConfigs[0]]
+
+const scratchCameraPosition = new THREE.Vector3()
+const scratchMeshWorldQuaternion = new THREE.Quaternion()
+const scratchInverseQuaternion = new THREE.Quaternion()
+const scratchLocalCameraPosition = new THREE.Vector3()
+const scratchCameraForward = new THREE.Vector3()
+const scratchLocalCameraForward = new THREE.Vector3()
+const scratchLocalCameraUp = new THREE.Vector3()
+const scratchPlanePosition = new THREE.Vector3()
+const scratchNormal = new THREE.Vector3()
+const scratchToCamera = new THREE.Vector3()
+const scratchPlaneUp = new THREE.Vector3()
+const scratchPlaneRight = new THREE.Vector3()
+const scratchCorrectedUp = new THREE.Vector3()
+const scratchRotationMatrix = new THREE.Matrix4()
+
 function createLabelTexture(level: number, dimmed: boolean) {
   const canvas = document.createElement('canvas')
   canvas.width = 128
@@ -182,10 +145,9 @@ function createLabelTexture(level: number, dimmed: boolean) {
   return texture
 }
 
-function CubeMeshInner({ cube, gridSize = 3, interactive = true, allowedCubeIds }: { cube: CubeData; gridSize?: number; interactive?: boolean; allowedCubeIds?: string[] | null }) {
+function CubeMeshInner({ cube, gridSize = 3, interactive = true, allowedCubeIds, reducedQuality = false }: { cube: CubeData; gridSize?: number; interactive?: boolean; allowedCubeIds?: string[] | null; reducedQuality?: boolean }) {
   const { clickCube, getCubeVisualState, mergeAnimation } = useGameStore()
   const groupRef = useRef<THREE.Group>(null)
-  const coreRef = useRef<THREE.Group>(null)
   const ringRef = useRef<THREE.Mesh>(null)
   const labelRefs = useRef<Array<THREE.Mesh | null>>([])
   const position = useMemo(() => toWorldPosition(cube.x, cube.y, cube.z, gridSize), [cube.x, cube.y, cube.z, gridSize])
@@ -199,12 +161,10 @@ function CubeMeshInner({ cube, gridSize = 3, interactive = true, allowedCubeIds 
   const scale = visual.selected ? 1.08 : visual.highlighted ? 1.04 : 1
   const isMergeSource = mergeAnimation?.sourceId === cube.id
   const isMergeTarget = mergeAnimation?.targetId === cube.id
-  const phase = levelPhase(cube.level)
-  const faction = factionVisuals(cube.color)
+  const faction = factionVisuals(cube)
+  const activeFaceConfigs = reducedQuality ? reducedFaceConfigs : faceConfigs
   const labelTexture = useMemo(() => createLabelTexture(cube.level, visual.dimmed), [cube.level, visual.dimmed])
   const shellGeometry = useMemo(() => createShellGeometry(), [])
-  const coreGeometry = useMemo(() => createLevelGeometry(cube.level), [cube.level])
-  const secondaryGeometry = useMemo(() => createSecondaryGeometry(cube.level), [cube.level])
   const labelMaterial = useMemo(() => new THREE.MeshBasicMaterial({
     map: labelTexture,
     transparent: true,
@@ -212,12 +172,8 @@ function CubeMeshInner({ cube, gridSize = 3, interactive = true, allowedCubeIds 
     depthWrite: false,
     toneMapped: false
   }), [labelTexture])
-  const coreColor = useMemo(() => new THREE.Color(CUBE_COLORS[cube.color]).offsetHSL(0, 0.08, cube.color === 'yellow' ? 0.12 : 0.06), [cube.color])
-  const shellColor = useMemo(() => new THREE.Color(CUBE_COLORS[cube.color]).lerp(new THREE.Color(faction.shellTint), visual.selected ? 0.36 : 0.18), [cube.color, faction.shellTint, visual.selected])
-  const energyMaterial = useMemo(() => {
-    if (cube.level < 7) return null
-    return createEnergyMaterial(coreColor.clone(), new THREE.Color(faction.coreAccent))
-  }, [coreColor, cube.level, faction.coreAccent])
+  const shellBaseColor = cube.variant === 'golden' ? '#f6c945' : CUBE_COLORS[cube.color]
+  const shellColor = useMemo(() => new THREE.Color(shellBaseColor).lerp(new THREE.Color(faction.shellTint), visual.selected ? 0.36 : 0.18), [faction.shellTint, shellBaseColor, visual.selected])
   const rimMaterial = useMemo(() => createRimMaterial(new THREE.Color(faction.coreAccent)), [faction.coreAccent])
 
   React.useEffect(() => {
@@ -225,17 +181,13 @@ function CubeMeshInner({ cube, gridSize = 3, interactive = true, allowedCubeIds 
       labelTexture.dispose()
       labelMaterial.dispose()
       shellGeometry.dispose()
-      coreGeometry.dispose()
-      secondaryGeometry?.dispose()
-      energyMaterial?.dispose()
       rimMaterial.dispose()
     }
-  }, [coreGeometry, energyMaterial, labelMaterial, labelTexture, rimMaterial, secondaryGeometry, shellGeometry])
+  }, [labelMaterial, labelTexture, rimMaterial, shellGeometry])
 
   useFrame(({ camera }) => {
     const group = groupRef.current
     if (!group) return
-    const core = coreRef.current
 
     if (!mergeAnimation || (!isMergeSource && !isMergeTarget)) {
       group.position.set(position[0], position[1], position[2])
@@ -267,78 +219,69 @@ function CubeMeshInner({ cube, gridSize = 3, interactive = true, allowedCubeIds 
       }
     }
 
-    if (core) {
-      const now = Date.now() * 0.001
-      const idleSpeed = 0.24 + cube.level * 0.035
-      core.rotation.x = now * idleSpeed * 0.45
-      core.rotation.y = now * idleSpeed
-      core.rotation.z = Math.sin(now * 0.8 + cube.level) * 0.14
-      const breathe = cube.color === 'red' ? 1 + Math.sin(now * 2.6 + cube.level) * 0.04 : 1 + Math.sin(now * 1.4 + cube.level) * 0.02
-      core.scale.setScalar(levelCoreScale(cube.level) * breathe)
-      if (energyMaterial) {
-        energyMaterial.uniforms.uTime.value = now
-      }
-      rimMaterial.uniforms.uIntensity.value = visual.selected ? 1.28 : visual.highlighted ? 1.08 : 0.88
+    const now = Date.now() * 0.001
+    rimMaterial.uniforms.uIntensity.value = visual.selected ? 1.28 : visual.highlighted ? 1.08 : 0.88
 
-      const ring = ringRef.current
-      if (ring) {
-        const pulse = visual.selected
-          ? 1 + Math.sin(now * 5.4 + cube.level) * 0.08
-          : visual.highlighted
-            ? 1 + Math.sin(now * 4.2 + cube.level) * 0.05
-            : 1
-        ring.scale.setScalar(pulse)
-      }
+    const ring = ringRef.current
+    if (ring) {
+      const pulse = visual.selected
+        ? 1 + Math.sin(now * 5.4 + cube.level) * 0.08
+        : visual.highlighted
+          ? 1 + Math.sin(now * 4.2 + cube.level) * 0.05
+          : 1
+      ring.scale.setScalar(pulse)
     }
 
-    const cameraPosition = new THREE.Vector3()
-    camera.getWorldPosition(cameraPosition)
-    const meshWorldQuaternion = group.getWorldQuaternion(new THREE.Quaternion())
-    const inverseMeshWorldQuaternion = meshWorldQuaternion.clone().invert()
-    const localCameraPosition = cameraPosition.clone()
-    group.worldToLocal(localCameraPosition)
-    const cameraForward = new THREE.Vector3()
-    camera.getWorldDirection(cameraForward)
-    const localCameraForward = cameraForward.applyQuaternion(inverseMeshWorldQuaternion).normalize()
-    const localCameraUp = camera.up.clone().applyQuaternion(inverseMeshWorldQuaternion).normalize()
+    camera.getWorldPosition(scratchCameraPosition)
+    group.getWorldQuaternion(scratchMeshWorldQuaternion)
+    scratchInverseQuaternion.copy(scratchMeshWorldQuaternion).invert()
+    scratchLocalCameraPosition.copy(scratchCameraPosition)
+    group.worldToLocal(scratchLocalCameraPosition)
+    camera.getWorldDirection(scratchCameraForward)
+    scratchLocalCameraForward.copy(scratchCameraForward).applyQuaternion(scratchInverseQuaternion).normalize()
+    scratchLocalCameraUp.copy(camera.up).applyQuaternion(scratchInverseQuaternion).normalize()
 
-    faceConfigs.forEach((config, index) => {
+    activeFaceConfigs.forEach((config, index) => {
       const plane = labelRefs.current[index]
       if (!plane) return
 
-      const planePosition = new THREE.Vector3(...config.position)
-      const normal = config.normal.clone()
-      const toCamera = localCameraPosition.clone().sub(planePosition).normalize()
-      const facing = normal.dot(toCamera)
+      scratchPlanePosition.set(config.position[0], config.position[1], config.position[2])
+      scratchNormal.copy(config.normal)
+      scratchToCamera.copy(scratchLocalCameraPosition).sub(scratchPlanePosition).normalize()
+      const facing = scratchNormal.dot(scratchToCamera)
 
       plane.visible = facing > 0.08 && !isMergeSource
       if (!plane.visible) return
 
-      let planeUp = localCameraUp.clone().sub(normal.clone().multiplyScalar(localCameraUp.dot(normal)))
-      if (planeUp.lengthSq() < 1e-4) {
-        planeUp = localCameraForward.clone().sub(normal.clone().multiplyScalar(localCameraForward.dot(normal)))
+      scratchPlaneUp.copy(scratchLocalCameraUp).sub(scratchNormal.clone().multiplyScalar(scratchLocalCameraUp.dot(scratchNormal)))
+      if (scratchPlaneUp.lengthSq() < 1e-4) {
+        scratchPlaneUp.copy(scratchLocalCameraForward).sub(scratchNormal.clone().multiplyScalar(scratchLocalCameraForward.dot(scratchNormal)))
       }
-      if (planeUp.lengthSq() < 1e-4) {
-        planeUp = new THREE.Vector3(0, 1, 0).sub(normal.clone().multiplyScalar(normal.y))
+      if (scratchPlaneUp.lengthSq() < 1e-4) {
+        scratchPlaneUp.set(0, 1, 0).sub(scratchNormal.clone().multiplyScalar(scratchNormal.y))
       }
-      planeUp.normalize()
-      const planeRight = new THREE.Vector3().crossVectors(planeUp, normal).normalize()
-      const correctedUp = new THREE.Vector3().crossVectors(normal, planeRight).normalize()
-      const rotationMatrix = new THREE.Matrix4().makeBasis(planeRight, correctedUp, normal)
-      plane.quaternion.setFromRotationMatrix(rotationMatrix)
+      scratchPlaneUp.normalize()
+      scratchPlaneRight.crossVectors(scratchPlaneUp, scratchNormal).normalize()
+      scratchCorrectedUp.crossVectors(scratchNormal, scratchPlaneRight).normalize()
+      scratchRotationMatrix.makeBasis(scratchPlaneRight, scratchCorrectedUp, scratchNormal)
+      plane.quaternion.setFromRotationMatrix(scratchRotationMatrix)
     })
+
+    for (let index = activeFaceConfigs.length; index < labelRefs.current.length; index += 1) {
+      const plane = labelRefs.current[index]
+      if (plane) {
+        plane.visible = false
+      }
+    }
   })
 
   const emissiveIntensity = isMergeTarget && mergeAnimation
     ? 0.62
     : visual.selected ? 0.45 : visual.highlighted ? 0.3 : cube.level > 1 ? 0.18 : 0
   const shellThickness = cube.level >= 6 ? 0.08 : cube.level >= 4 ? 0.11 : 0.15
-  const shellRoughness = phase === 'awakening' ? Math.max(0.3, faction.shellRoughness + 0.08) : phase === 'forming' ? faction.shellRoughness : Math.max(0.16, faction.shellRoughness - 0.02)
-  const shellTransmission = phase === 'awakening' ? Math.max(0.48, faction.shellTransmission - 0.08) : phase === 'forming' ? faction.shellTransmission : Math.min(0.82, faction.shellTransmission + 0.04)
-  const coreEmissiveIntensity = phase === 'awakening' ? 0.45 : phase === 'forming' ? 0.85 : phase === 'critical' ? 1.2 : 1.55
-  const innerOpacity = visual.dimmed ? 0.58 : 1
+  const shellRoughness = cube.level <= 3 ? Math.max(0.3, faction.shellRoughness + 0.08) : cube.level <= 6 ? faction.shellRoughness : Math.max(0.16, faction.shellRoughness - 0.02)
+  const shellTransmission = cube.level <= 3 ? Math.max(0.48, faction.shellTransmission - 0.08) : cube.level <= 6 ? faction.shellTransmission : Math.min(0.82, faction.shellTransmission + 0.04)
   const shellOpacity = visual.selected ? 1 : visual.highlighted ? Math.min(1, faction.shellOpacity + 0.03) : faction.shellOpacity
-  const selectedLift = visual.selected ? 0.04 : visual.highlighted ? 0.02 : 0
   const showSelectionRing = visual.selected || visual.highlighted
   const ringColor = visual.selected ? '#ffffff' : faction.coreAccent
   const ringOpacity = visual.selected ? 0.9 : 0.42
@@ -349,41 +292,7 @@ function CubeMeshInner({ cube, gridSize = 3, interactive = true, allowedCubeIds 
       position={position}
       scale={scale}
     >
-      <group ref={coreRef} position={[0, selectedLift, 0]}>
-        <mesh raycast={() => null}>
-          <primitive attach="geometry" object={coreGeometry} />
-          {energyMaterial ? (
-            <primitive attach="material" object={energyMaterial} />
-          ) : (
-            <meshStandardMaterial
-              color={coreColor}
-              emissive={new THREE.Color(faction.coreAccent)}
-              emissiveIntensity={coreEmissiveIntensity * (visual.highlighted ? 1.18 : 1)}
-              metalness={cube.color === 'yellow' ? 0.26 : phase === 'awakening' ? 0.12 : 0.2}
-              roughness={cube.color === 'red' ? 0.28 : phase === 'awakening' ? 0.38 : 0.22}
-              transparent={innerOpacity < 1}
-              depthWrite
-              opacity={isMergeSource ? innerOpacity * 0.45 : innerOpacity}
-            />
-          )}
-        </mesh>
-        {secondaryGeometry ? (
-          <mesh raycast={() => null} rotation={[Math.PI / 4, Math.PI / 4, 0]} scale={0.72}>
-            <primitive attach="geometry" object={secondaryGeometry} />
-            <meshStandardMaterial
-              color={new THREE.Color('#f8fbff')}
-              emissive={new THREE.Color(faction.coreAccent)}
-              emissiveIntensity={coreEmissiveIntensity * 0.42}
-              metalness={cube.color === 'yellow' ? 0.16 : 0.06}
-              roughness={cube.color === 'blue' ? 0.14 : 0.22}
-              transparent={visual.dimmed}
-              depthWrite
-              opacity={visual.dimmed ? 0.48 : 0.72}
-            />
-          </mesh>
-        ) : null}
-      </group>
-        <mesh onClick={(event) => {
+      <mesh onClick={(event) => {
         if (!interactive || (allowedCubeIds && !allowedCubeIds.includes(cube.id))) {
           return
         }
@@ -391,25 +300,39 @@ function CubeMeshInner({ cube, gridSize = 3, interactive = true, allowedCubeIds 
         clickCube(cube.id)
       }}>
         <primitive attach="geometry" object={shellGeometry} />
-        <meshPhysicalMaterial
-          color={shellColor}
-          metalness={0.02}
-          roughness={shellRoughness}
-          transmission={shellTransmission}
-          ior={cube.color === 'yellow' ? 1.22 : cube.color === 'red' ? 1.14 : 1.18}
-          thickness={shellThickness}
-          reflectivity={0.7}
-          clearcoat={1}
-          clearcoatRoughness={visual.selected ? 0.06 : 0.12}
-          attenuationDistance={1.4}
-          attenuationColor={shellColor}
-          emissive={emissive}
-          emissiveIntensity={emissiveIntensity + (cube.color === 'red' ? 0.12 : cube.color === 'yellow' ? 0.08 : 0.04)}
-          transparent
-          depthWrite
-          depthTest
-          opacity={isMergeSource ? Math.max(0.45, opacity * 0.72) : Math.max(0.9, opacity * shellOpacity)}
-        />
+        {reducedQuality ? (
+          <meshStandardMaterial
+            color={shellColor}
+            emissive={emissive}
+            emissiveIntensity={emissiveIntensity * 0.78}
+            metalness={0.04}
+            roughness={Math.min(0.72, shellRoughness + 0.18)}
+            transparent
+            depthWrite
+            depthTest
+            opacity={isMergeSource ? Math.max(0.4, opacity * 0.68) : Math.max(0.88, opacity * shellOpacity)}
+          />
+        ) : (
+          <meshPhysicalMaterial
+            color={shellColor}
+            metalness={0.02}
+            roughness={shellRoughness}
+            transmission={shellTransmission}
+            ior={cube.color === 'yellow' ? 1.22 : cube.color === 'red' ? 1.14 : 1.18}
+            thickness={shellThickness}
+            reflectivity={0.7}
+            clearcoat={1}
+            clearcoatRoughness={visual.selected ? 0.06 : 0.12}
+            attenuationDistance={1.4}
+            attenuationColor={shellColor}
+            emissive={emissive}
+            emissiveIntensity={emissiveIntensity + (cube.color === 'red' ? 0.12 : cube.color === 'yellow' ? 0.08 : 0.04)}
+            transparent
+            depthWrite
+            depthTest
+            opacity={isMergeSource ? Math.max(0.45, opacity * 0.72) : Math.max(0.9, opacity * shellOpacity)}
+          />
+        )}
       </mesh>
       <mesh raycast={() => null} scale={1.012}>
         <primitive attach="geometry" object={shellGeometry} />
@@ -421,7 +344,7 @@ function CubeMeshInner({ cube, gridSize = 3, interactive = true, allowedCubeIds 
           <meshBasicMaterial color={ringColor} transparent opacity={ringOpacity} depthWrite={false} toneMapped={false} />
         </mesh>
       ) : null}
-      {faceConfigs.map((config, index) => (
+      {activeFaceConfigs.map((config, index) => (
         <mesh
           key={config.key}
           raycast={() => null}

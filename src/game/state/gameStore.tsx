@@ -62,6 +62,50 @@ type TimerApi = {
   clearTimeout: typeof clearTimeout
 }
 
+type RecentScoringAction = {
+  sourceId: string
+  sourceColor: CubeData['color']
+  kind: 'merge_blue' | 'merge_yellow' | 'devour_red' | 'devour_yellow' | 'devour_golden'
+  position: Pick<CubeData, 'x' | 'y' | 'z'>
+}
+
+type EndlessStage = 'early' | 'mid' | 'late' | 'endgame'
+
+type EndlessStageConfig = {
+  scoreMaxInclusive: number
+  highestBlueMaxInclusive: number
+  colorWeights: {
+    blue: number
+    red: number
+    yellow: number
+  }
+  goldChance: number
+  blueLevelRolls: number[]
+  yellowLevelMin: number
+  yellowLevelMax: number
+  redLevelBand: {
+    minOffset: number
+    maxOffset: number
+  }
+}
+
+type EndlessTuning = {
+  minBlueCount: number
+  stageConfigs: Record<EndlessStage, EndlessStageConfig>
+}
+
+type DominanceContext = {
+  sourceId: string
+  state: 'active' | 'observe'
+}
+
+type EndlessDiagnostics = {
+  stage: EndlessStage
+  dominantBlueId: string | null
+  dominantBlueState: 'active' | 'observe' | 'none'
+  yellowFamilyPityCount: number
+}
+
 type GameStoreData = ComboState & {
   cubes: CubeData[]
   selectedCubeId: string | null
@@ -101,6 +145,7 @@ export type GameStoreSnapshot = {
   statusHintKey: StatusHintKey | null
   matchResult: MatchResult
   actionStats: ActionStats
+  endlessDiagnostics: EndlessDiagnostics | null
   ui: PlayableDemoUiConfig
   validTargetIds: string[]
   bombTargetIds: string[]
@@ -135,6 +180,144 @@ export type CreateGameStoreOptions = {
 
 const MERGE_DURATION_MS = 240
 export const GameStoreContext = createContext<GameStore | null>(null)
+
+const ENDLESS_TUNING: Record<3 | 4 | 5, EndlessTuning> = {
+  3: {
+    minBlueCount: 2,
+    stageConfigs: {
+      early: {
+        scoreMaxInclusive: 2000,
+        highestBlueMaxInclusive: 2,
+        colorWeights: { blue: 40, red: 20, yellow: 40 },
+        goldChance: 0,
+        blueLevelRolls: [1, 1, 1, 2, 2],
+        yellowLevelMin: 1,
+        yellowLevelMax: 2,
+        redLevelBand: { minOffset: -2, maxOffset: -1 }
+      },
+      mid: {
+        scoreMaxInclusive: 8000,
+        highestBlueMaxInclusive: 4,
+        colorWeights: { blue: 28, red: 42, yellow: 30 },
+        goldChance: 0.08,
+        blueLevelRolls: [1, 1, 2, 2, 3],
+        yellowLevelMin: 1,
+        yellowLevelMax: 3,
+        redLevelBand: { minOffset: -1, maxOffset: 0 }
+      },
+      late: {
+        scoreMaxInclusive: 20000,
+        highestBlueMaxInclusive: 6,
+        colorWeights: { blue: 20, red: 56, yellow: 24 },
+        goldChance: 0.14,
+        blueLevelRolls: [1, 2, 2, 2, 3],
+        yellowLevelMin: 2,
+        yellowLevelMax: 4,
+        redLevelBand: { minOffset: -1, maxOffset: 1 }
+      },
+      endgame: {
+        scoreMaxInclusive: Number.POSITIVE_INFINITY,
+        highestBlueMaxInclusive: Number.POSITIVE_INFINITY,
+        colorWeights: { blue: 16, red: 64, yellow: 20 },
+        goldChance: 0.2,
+        blueLevelRolls: [1, 2, 2, 3],
+        yellowLevelMin: 2,
+        yellowLevelMax: 5,
+        redLevelBand: { minOffset: 0, maxOffset: 1 }
+      }
+    }
+  },
+  4: {
+    minBlueCount: 3,
+    stageConfigs: {
+      early: {
+        scoreMaxInclusive: 5000,
+        highestBlueMaxInclusive: 2,
+        colorWeights: { blue: 36, red: 28, yellow: 36 },
+        goldChance: 0,
+        blueLevelRolls: [1, 1, 1, 2, 2],
+        yellowLevelMin: 1,
+        yellowLevelMax: 2,
+        redLevelBand: { minOffset: -2, maxOffset: -1 }
+      },
+      mid: {
+        scoreMaxInclusive: 20000,
+        highestBlueMaxInclusive: 4,
+        colorWeights: { blue: 26, red: 40, yellow: 34 },
+        goldChance: 0.1,
+        blueLevelRolls: [1, 1, 2, 2, 3],
+        yellowLevelMin: 1,
+        yellowLevelMax: 3,
+        redLevelBand: { minOffset: -1, maxOffset: 0 }
+      },
+      late: {
+        scoreMaxInclusive: 60000,
+        highestBlueMaxInclusive: 6,
+        colorWeights: { blue: 20, red: 50, yellow: 30 },
+        goldChance: 0.16,
+        blueLevelRolls: [1, 2, 2, 2, 3],
+        yellowLevelMin: 2,
+        yellowLevelMax: 4,
+        redLevelBand: { minOffset: -1, maxOffset: 1 }
+      },
+      endgame: {
+        scoreMaxInclusive: Number.POSITIVE_INFINITY,
+        highestBlueMaxInclusive: Number.POSITIVE_INFINITY,
+        colorWeights: { blue: 16, red: 58, yellow: 26 },
+        goldChance: 0.24,
+        blueLevelRolls: [1, 2, 2, 3],
+        yellowLevelMin: 2,
+        yellowLevelMax: 5,
+        redLevelBand: { minOffset: 0, maxOffset: 1 }
+      }
+    }
+  },
+  5: {
+    minBlueCount: 3,
+    stageConfigs: {
+      early: {
+        scoreMaxInclusive: 10000,
+        highestBlueMaxInclusive: 2,
+        colorWeights: { blue: 38, red: 24, yellow: 38 },
+        goldChance: 0,
+        blueLevelRolls: [1, 1, 1, 2, 2],
+        yellowLevelMin: 1,
+        yellowLevelMax: 2,
+        redLevelBand: { minOffset: -2, maxOffset: -1 }
+      },
+      mid: {
+        scoreMaxInclusive: 40000,
+        highestBlueMaxInclusive: 4,
+        colorWeights: { blue: 28, red: 36, yellow: 36 },
+        goldChance: 0.12,
+        blueLevelRolls: [1, 1, 2, 2, 3],
+        yellowLevelMin: 1,
+        yellowLevelMax: 3,
+        redLevelBand: { minOffset: -1, maxOffset: 0 }
+      },
+      late: {
+        scoreMaxInclusive: 120000,
+        highestBlueMaxInclusive: 6,
+        colorWeights: { blue: 20, red: 46, yellow: 34 },
+        goldChance: 0.22,
+        blueLevelRolls: [1, 2, 2, 2, 3],
+        yellowLevelMin: 2,
+        yellowLevelMax: 4,
+        redLevelBand: { minOffset: -1, maxOffset: 1 }
+      },
+      endgame: {
+        scoreMaxInclusive: Number.POSITIVE_INFINITY,
+        highestBlueMaxInclusive: Number.POSITIVE_INFINITY,
+        colorWeights: { blue: 16, red: 56, yellow: 28 },
+        goldChance: 0.3,
+        blueLevelRolls: [1, 2, 2, 3],
+        yellowLevelMin: 2,
+        yellowLevelMax: 5,
+        redLevelBand: { minOffset: 0, maxOffset: 2 }
+      }
+    }
+  }
+}
 
 function getBoardCapacity(gridSize: number) {
   return gridSize * gridSize * gridSize
@@ -185,6 +368,26 @@ function checkEndlessGameOver(cubes: CubeData[], gridSize: number, bombCount: nu
 
 function cloneCube(cube: CubeData): CubeData {
   return { ...cube }
+}
+
+function isBlueCube(cube: CubeData) {
+  return cube.color === 'blue'
+}
+
+function getBlueCubes(cubes: CubeData[]) {
+  return cubes.filter(isBlueCube)
+}
+
+function getDistance(a: Pick<CubeData, 'x' | 'y' | 'z'>, b: Pick<CubeData, 'x' | 'y' | 'z'>) {
+  return Math.abs(a.x - b.x) + Math.abs(a.y - b.y) + Math.abs(a.z - b.z)
+}
+
+function getEndlessTuning(gridSize: number) {
+  return ENDLESS_TUNING[gridSize as 3 | 4 | 5] ?? ENDLESS_TUNING[3]
+}
+
+function clampLevel(level: number) {
+  return Math.max(1, Math.min(9, Math.floor(level)))
 }
 
 function cloneConfig(config: PlayableDemoConfig): PlayableDemoConfig {
@@ -251,6 +454,13 @@ function incrementActionCount(table: Record<string, number>, key: string) {
   table[key] = (table[key] ?? 0) + 1
 }
 
+function pushRecentScoringAction(history: RecentScoringAction[], action: RecentScoringAction) {
+  history.push(action)
+  if (history.length > 6) {
+    history.splice(0, history.length - 6)
+  }
+}
+
 export function createGameStore(options: CreateGameStoreOptions = {}): GameStore {
   const config = cloneConfig(getValidatedPlayableDemoConfig(options.config))
   const now = options.now ?? (() => Date.now())
@@ -267,6 +477,10 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
   let refillTimer: TimeoutHandle | null = null
   let cachedSnapshot: GameStoreSnapshot | null = null
   let endlessSpawnSerial = 0
+  let recentScoringActions: RecentScoringAction[] = []
+  let refillsSinceYellowFamily = 0
+  let lastDominantSourceId: string | null = null
+  let dominanceObserveSpawnsRemaining = 0
 
   const getDerived = (selectedCubeId = data.selectedCubeId) => {
     const visibleCubes = data.cubes.filter((cube) => isCubeVisible(cube, data.slice))
@@ -321,37 +535,246 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
     refillTimer = null
   }
 
-  const getEndlessWeights = () => {
-    const endless = config.endless
-    if (!endless) {
+  const getEndlessStage = (): EndlessStage => {
+    const tuning = getEndlessTuning(config.board.gridSize)
+    const highestBlueLevel = getHighestBlueLevel(data.cubes)
+    const score = data.score
+
+    if (score > tuning.stageConfigs.late.scoreMaxInclusive || highestBlueLevel > tuning.stageConfigs.late.highestBlueMaxInclusive) {
+      return 'endgame'
+    }
+
+    if (score > tuning.stageConfigs.mid.scoreMaxInclusive || highestBlueLevel > tuning.stageConfigs.mid.highestBlueMaxInclusive) {
+      return 'late'
+    }
+
+    if (score > tuning.stageConfigs.early.scoreMaxInclusive || highestBlueLevel > tuning.stageConfigs.early.highestBlueMaxInclusive) {
+      return 'mid'
+    }
+
+    return 'early'
+  }
+
+  const getDominanceContext = (): DominanceContext | null => {
+    const recentBlueActions = recentScoringActions.filter((action) => action.sourceColor === 'blue')
+    const blueActionCounts = new Map<string, { total: number; devours: number }>()
+    const highestBlueLevel = getHighestBlueLevel(data.cubes)
+
+    for (const action of recentBlueActions) {
+      const next = blueActionCounts.get(action.sourceId) ?? { total: 0, devours: 0 }
+      next.total += 1
+      if (action.kind === 'devour_red' || action.kind === 'devour_yellow' || action.kind === 'devour_golden') {
+        next.devours += 1
+      }
+      blueActionCounts.set(action.sourceId, next)
+    }
+
+    const dominantEntry = [...blueActionCounts.entries()].find(([sourceId, counts]) => {
+      const cube = data.cubes.find((item) => item.id === sourceId && item.color === 'blue')
+      if (!cube) {
+        return false
+      }
+
+      return counts.total >= 4 && counts.devours >= 2 && cube.level >= Math.max(1, highestBlueLevel - 1)
+    })
+
+    if (dominantEntry) {
+      lastDominantSourceId = dominantEntry[0]
+      dominanceObserveSpawnsRemaining = 0
+      return {
+        sourceId: dominantEntry[0],
+        state: 'active'
+      }
+    }
+
+    if (lastDominantSourceId) {
+      const dominantCubeStillExists = data.cubes.some((cube) => cube.id === lastDominantSourceId && cube.color === 'blue')
+      if (dominantCubeStillExists && dominanceObserveSpawnsRemaining === 0) {
+        dominanceObserveSpawnsRemaining = 2
+      }
+
+      if (dominantCubeStillExists && dominanceObserveSpawnsRemaining > 0) {
+        return {
+          sourceId: lastDominantSourceId,
+          state: 'observe'
+        }
+      }
+    }
+
+    lastDominantSourceId = null
+    return null
+  }
+
+  const getEndlessDiagnostics = (): EndlessDiagnostics | null => {
+    if (!isEndlessMode()) {
       return null
     }
 
-    const pressureTier = Math.min(5, Math.floor(data.score / 600))
-    const pressureShift = pressureTier * 4
+    const dominanceContext = getDominanceContext()
+
     return {
-      redWeight: endless.redWeight + pressureShift,
-      yellowWeight: Math.max(5, endless.yellowWeight - Math.max(0, pressureTier - 2) * 2),
-      blueWeight: Math.max(5, endless.blueWeight - pressureShift)
+      stage: getEndlessStage(),
+      dominantBlueId: dominanceContext?.sourceId ?? null,
+      dominantBlueState: dominanceContext?.state ?? 'none',
+      yellowFamilyPityCount: refillsSinceYellowFamily
     }
   }
 
-  const pickEndlessSpawnColor = (): CubeData['color'] => {
-    const weights = getEndlessWeights()
-    if (!weights) {
-      return 'red'
+  const getMainOperationCells = () => {
+    return recentScoringActions.slice(-4).map((action) => action.position)
+  }
+
+  const getKeyPathCells = () => {
+    const cells = new Set<string>()
+
+    for (const cube of data.cubes) {
+      if (cube.color !== 'blue') {
+        continue
+      }
+
+      for (const targetId of getValidTargets(data.cubes, cube.id)) {
+        const target = data.cubes.find((item) => item.id === targetId)
+        if (!target) {
+          continue
+        }
+
+        const midpoints: Array<Pick<CubeData, 'x' | 'y' | 'z'>> = [cube, target]
+        for (const cell of midpoints) {
+          cells.add(`${cell.x}:${cell.y}:${cell.z}`)
+        }
+      }
     }
 
-    const totalWeight = weights.redWeight + weights.yellowWeight + weights.blueWeight
+    return cells
+  }
+
+  const pickWeightedCell = (color: CubeData['color'], emptyCells: Array<Pick<CubeData, 'x' | 'y' | 'z'>>) => {
+    const blueCubes = getBlueCubes(data.cubes)
+    const mainOperationCells = getMainOperationCells()
+    const keyPathCells = getKeyPathCells()
+    const dominanceContext = getDominanceContext()
+    const dominantCube = dominanceContext ? data.cubes.find((cube) => cube.id === dominanceContext.sourceId) ?? null : null
+    const alternativeBlueCubes = blueCubes.filter((cube) => cube.id !== dominantCube?.id)
+    const weightedCells = emptyCells.map((cell) => {
+      let weight = 1
+      const nearestBlueDistance = blueCubes.length > 0
+        ? Math.min(...blueCubes.map((cube) => getDistance(cell, cube)))
+        : config.board.gridSize
+      const nearestAltBlueDistance = alternativeBlueCubes.length > 0
+        ? Math.min(...alternativeBlueCubes.map((cube) => getDistance(cell, cube)))
+        : config.board.gridSize
+      const dominantDistance = dominantCube ? getDistance(cell, dominantCube) : config.board.gridSize
+      const touchesMainOperationArea = mainOperationCells.some((actionCell) => getDistance(cell, actionCell) <= 1)
+      const inKeyPath = keyPathCells.has(`${cell.x}:${cell.y}:${cell.z}`)
+
+      if (color === 'blue') {
+        weight += nearestAltBlueDistance <= 1 ? 3.8 : nearestBlueDistance <= 1 ? 2.4 : 0.8
+        if (dominantCube) {
+          weight += dominantDistance >= 2 ? 2.2 : 0.4
+        }
+      }
+
+      if (color === 'yellow') {
+        weight += dominantDistance >= 2 ? 3.2 : 0.6
+        weight += nearestAltBlueDistance <= 1 ? 1.8 : 0
+        weight += touchesMainOperationArea ? 0.4 : 1.6
+      }
+
+      if (color === 'red') {
+        weight += inKeyPath ? 3 : 0.6
+        weight += touchesMainOperationArea ? 2.2 : 0.4
+        weight += dominantCube && dominantDistance <= 1 ? 3.4 : nearestBlueDistance <= 1 ? 1.8 : 0.4
+      }
+
+      if (dominanceContext?.state === 'observe') {
+        weight *= 0.88
+      }
+
+      return {
+        cell,
+        weight: Math.max(0.1, weight)
+      }
+    })
+
+    const totalWeight = weightedCells.reduce((sum, entry) => sum + entry.weight, 0)
     let roll = random() * totalWeight
-    if (roll < weights.redWeight) {
-      return 'red'
+
+    for (const entry of weightedCells) {
+      if (roll < entry.weight) {
+        return entry.cell
+      }
+      roll -= entry.weight
     }
-    roll -= weights.redWeight
-    if (roll < weights.yellowWeight) {
-      return 'yellow'
+
+    return weightedCells[weightedCells.length - 1]?.cell ?? emptyCells[0]
+  }
+
+  const pickEndlessSpawnBlueprint = () => {
+    const tuning = getEndlessTuning(config.board.gridSize)
+    const stage = getEndlessStage()
+    const stageConfig = tuning.stageConfigs[stage]
+    const highestBlueLevel = getHighestBlueLevel(data.cubes)
+    const blueCount = getBlueCubes(data.cubes).length
+    const dominanceContext = getDominanceContext()
+    const weights = {
+      blue: stageConfig.colorWeights.blue,
+      red: stageConfig.colorWeights.red,
+      yellow: stageConfig.colorWeights.yellow
     }
-    return 'blue'
+
+    if (blueCount < tuning.minBlueCount) {
+      weights.blue = Math.max(weights.blue, Math.max(weights.red, weights.yellow) + 1)
+    }
+
+    if (refillsSinceYellowFamily >= 5) {
+      const spawnsGolden = stageConfig.goldChance > 0 && random() < stageConfig.goldChance
+      return {
+        color: 'yellow' as const,
+        variant: spawnsGolden ? 'golden' as const : undefined,
+        level: clampLevel(stageConfig.yellowLevelMin + Math.floor(random() * (stageConfig.yellowLevelMax - stageConfig.yellowLevelMin + 1)))
+      }
+    }
+
+    if (dominanceContext) {
+      weights.red += dominanceContext.state === 'active' ? 18 : 8
+      weights.yellow = Math.max(6, weights.yellow - (dominanceContext.state === 'active' ? 12 : 5))
+    }
+
+    const totalWeight = weights.blue + weights.red + weights.yellow
+    let roll = random() * totalWeight
+    let color: CubeData['color'] = 'red'
+
+    if (roll < weights.blue) {
+      color = 'blue'
+    } else {
+      roll -= weights.blue
+      color = roll < weights.red ? 'red' : 'yellow'
+    }
+
+    if (color === 'blue') {
+      return {
+        color,
+        variant: undefined,
+        level: stageConfig.blueLevelRolls[Math.floor(random() * stageConfig.blueLevelRolls.length)] ?? 1
+      }
+    }
+
+    if (color === 'yellow') {
+      return {
+        color,
+        variant: stageConfig.goldChance > 0 && random() < stageConfig.goldChance ? 'golden' as const : undefined,
+        level: clampLevel(stageConfig.yellowLevelMin + Math.floor(random() * (stageConfig.yellowLevelMax - stageConfig.yellowLevelMin + 1)))
+      }
+    }
+
+    const redMin = clampLevel(highestBlueLevel + stageConfig.redLevelBand.minOffset)
+    const redMax = clampLevel(Math.max(redMin, highestBlueLevel + stageConfig.redLevelBand.maxOffset))
+
+    return {
+      color,
+      variant: undefined,
+      level: clampLevel(redMin + Math.floor(random() * (redMax - redMin + 1)))
+    }
   }
 
   const spawnEndlessRefillCube = () => {
@@ -360,23 +783,26 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
       return false
     }
 
-    const cell = emptyCells[Math.floor(random() * emptyCells.length)]
-    const highestBlueLevel = getHighestBlueLevel(data.cubes)
-    const maxSpawnLevel = Math.max(1, highestBlueLevel - 1)
-    const level = 1 + Math.floor(random() * maxSpawnLevel)
+    const blueprint = pickEndlessSpawnBlueprint()
+    const cell = pickWeightedCell(blueprint.color, emptyCells)
 
     data.cubes = [
       ...data.cubes,
       {
         id: `endless_spawn_${String(endlessSpawnSerial).padStart(4, '0')}`,
-        color: pickEndlessSpawnColor(),
-        level,
+        color: blueprint.color,
+        variant: blueprint.variant,
+        level: blueprint.level,
         x: cell.x,
         y: cell.y,
         z: cell.z
       }
     ]
     endlessSpawnSerial += 1
+    refillsSinceYellowFamily = blueprint.color === 'yellow' ? 0 : refillsSinceYellowFamily + 1
+    if (!recentScoringActions.some((action) => action.sourceId === lastDominantSourceId)) {
+      dominanceObserveSpawnsRemaining = Math.max(0, dominanceObserveSpawnsRemaining - 1)
+    }
     return true
   }
 
@@ -617,6 +1043,16 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
 
     if (result.kind === 'merge') {
       incrementActionCount(data.actionStats.mergeCounts, `${selectedCube.color}:${result.nextLevel}`)
+      pushRecentScoringAction(recentScoringActions, {
+        sourceId: result.sourceId,
+        sourceColor: selectedCube.color,
+        kind: selectedCube.color === 'yellow' ? 'merge_yellow' : 'merge_blue',
+        position: {
+          x: target.x,
+          y: target.y,
+          z: target.z
+        }
+      })
       clearResolutionTimer()
       data.runState = 'resolving'
       data.overlay = 'none'
@@ -642,6 +1078,20 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
     data.cubes = result.cubes.map(cloneCube)
     data.score += awardedScore
     incrementActionCount(data.actionStats.devourCounts, `${target.color}:${result.consumedLevel}`)
+    pushRecentScoringAction(recentScoringActions, {
+      sourceId: result.sourceId,
+      sourceColor: selectedCube.color,
+      kind: target.color === 'red'
+        ? 'devour_red'
+        : target.variant === 'golden'
+          ? 'devour_golden'
+          : 'devour_yellow',
+      position: {
+        x: target.x,
+        y: target.y,
+        z: target.z
+      }
+    })
     if (result.kind === 'devour_yellow') {
       data.coins += result.consumedLevel
     }
@@ -723,6 +1173,10 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
     pausedComboRemainingMs = null
     data = createInitialData(config)
     endlessSpawnSerial = 0
+    recentScoringActions = []
+    refillsSinceYellowFamily = 0
+    lastDominantSourceId = null
+    dominanceObserveSpawnsRemaining = 0
     syncInteractiveFlow()
     emit()
   }
@@ -870,6 +1324,7 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
       statusHintKey: data.statusHintKey,
       matchResult: data.matchResult,
       actionStats: data.actionStats,
+      endlessDiagnostics: getEndlessDiagnostics(),
       ui: config.ui,
       validTargetIds: derived.validTargetIds,
       bombTargetIds: derived.bombTargetIds,

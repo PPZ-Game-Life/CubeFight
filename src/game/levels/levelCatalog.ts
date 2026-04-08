@@ -131,6 +131,7 @@ function parseInitialCube(value: unknown, levelId: number, index: number): Omit<
     y: y as number,
     z: z as number,
     color: value.color,
+    variant: value.variant === 'golden' ? 'golden' : undefined,
     level: level as number
   }
 }

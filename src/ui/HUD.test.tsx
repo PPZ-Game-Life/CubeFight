@@ -32,6 +32,8 @@ function renderWithGameProviders(options: {
   config?: PlayableDemoConfig
   onBackToLobby?: () => void
   levelInfo?: React.ComponentProps<typeof HUD>['levelInfo']
+  showEndlessDiagnostics?: boolean
+  showFps?: boolean
 } = {}) {
   const locale = options.locale ?? 'en'
   const store = options.store ?? createGameStore({ config: options.config })
@@ -43,7 +45,7 @@ function renderWithGameProviders(options: {
     ...render(
         <LocaleProvider>
           <GameStoreContext.Provider value={store}>
-            <HUD levelInfo={options.levelInfo} onBackToLobby={options.onBackToLobby ?? (() => undefined)} />
+            <HUD levelInfo={options.levelInfo} onBackToLobby={options.onBackToLobby ?? (() => undefined)} showEndlessDiagnostics={options.showEndlessDiagnostics} showFps={options.showFps} />
           </GameStoreContext.Provider>
         </LocaleProvider>
     )
@@ -157,17 +159,45 @@ describe('HUD', () => {
 
     expect(screen.getByTestId('hud-stat-bar')).toBeInTheDocument()
     expect(screen.getByTestId('hud-score-hero')).toBeInTheDocument()
-    expect(screen.getByTestId('hud-fps-panel')).toBeInTheDocument()
+    expect(screen.queryByTestId('hud-fps-panel')).not.toBeInTheDocument()
     expect(screen.getByTestId('hud-lobby-button')).toBeInTheDocument()
     expect(screen.queryByTestId('hud-bomb-dock')).not.toBeInTheDocument()
     expect(screen.getByTestId('hud-bottom-row')).toBeInTheDocument()
     expect(screen.queryByLabelText('Hammer')).not.toBeInTheDocument()
   })
 
-  it('renders localized fps label in the top-right diagnostics panel', () => {
-    renderWithGameProviders({ locale: 'zh-CN' })
+  it('renders localized fps label in the top-right diagnostics panel when enabled', () => {
+    renderWithGameProviders({ locale: 'zh-CN', showFps: true })
 
     expect(screen.getByTestId('hud-fps-panel')).toHaveTextContent('帧率')
+  })
+
+  it('renders endless diagnostics when debug diagnostics are enabled', () => {
+    const config = buildPlayableDemoConfig()
+    config.board.gridSize = 3
+    config.winLoss.victory = 'none'
+    config.endless = {
+      enabled: true,
+      refillDelayMs: 1,
+      spawnIntervalSteps: 1,
+      redWeight: 20,
+      yellowWeight: 20,
+      blueWeight: 60
+    }
+    config.board.cubes = [
+      cube({ id: 'blue-main', color: 'blue', level: 3, x: 0, y: 0, z: 0 }),
+      cube({ id: 'red-target', color: 'red', level: 1, x: 1, y: 0, z: 0 })
+    ]
+
+    const store = createGameStore({ config })
+    store.getState().selectCube('blue-main')
+    store.getState().commitBoardAction('red-target')
+
+    renderWithGameProviders({ store, showEndlessDiagnostics: true })
+
+    expect(screen.getByTestId('hud-endless-diagnostics-panel')).toHaveTextContent('Endless Debug')
+    expect(screen.getByTestId('hud-endless-diagnostics-panel')).toHaveTextContent('Stage')
+    expect(screen.getByTestId('hud-endless-diagnostics-panel')).toHaveTextContent('Yellow Pity')
   })
 
   it('maps fps values to traffic-light colors', () => {

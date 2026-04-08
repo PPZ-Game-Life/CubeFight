@@ -66,9 +66,9 @@ class AudioManager {
     this.gameBaseGain = this.context.createGain()
     this.gameMelodyGain = this.context.createGain()
 
-    this.masterGain.gain.value = 0.9
-    this.musicGain.gain.value = 0.7
-    this.sfxGain.gain.value = 0.95
+    this.masterGain.gain.value = 0.86
+    this.musicGain.gain.value = 0.66
+    this.sfxGain.gain.value = 0.84
     this.menuGain.gain.value = 0
     this.gameBaseGain.gain.value = 0
     this.gameMelodyGain.gain.value = 0
@@ -239,15 +239,15 @@ class AudioManager {
     }
 
     if (this.currentScene === 'menu') {
-      this.ramp(this.menuGain, 0.23, 0.25)
+      this.ramp(this.menuGain, 0.2, 0.25)
       this.ramp(this.gameBaseGain, 0, 0.18)
       this.ramp(this.gameMelodyGain, 0, 0.18)
       return
     }
 
     this.ramp(this.menuGain, 0, 0.18)
-    this.ramp(this.gameBaseGain, 0.27, 0.2)
-    this.ramp(this.gameMelodyGain, this.melodyActive ? 0.18 : 0.01, 0.2)
+    this.ramp(this.gameBaseGain, 0.23, 0.2)
+    this.ramp(this.gameMelodyGain, this.melodyActive ? 0.15 : 0.008, 0.2)
   }
 
   private async syncScenePlayback() {
@@ -381,7 +381,7 @@ class AudioManager {
 
   async playUiConfirm() {
     await this.unlock()
-    await this.playSprite('click_confirm', { gain: 0.9, maxInstances: 2 })
+    await this.playSprite('click_confirm', { gain: 0.72, maxInstances: 2 })
   }
 
   async playSelect() {
@@ -390,28 +390,28 @@ class AudioManager {
 
   async playSlice(index: number) {
     const cueIndex = Math.max(1, Math.min(3, index + 1))
-    await this.playSprite(`hover_l${cueIndex}`, { gain: 0.82, maxInstances: 2 })
+    await this.playSprite(`hover_l${cueIndex}`, { gain: 0.68, maxInstances: 2 })
   }
 
   async playMerge(level: number) {
     this.duckMusic(0.6, 0.5)
-    await this.playSprite(`merge_lv${Math.max(2, Math.min(9, level))}`, { gain: 0.94, maxInstances: 2 })
+    await this.playSprite(`merge_lv${Math.max(2, Math.min(9, level))}`, { gain: 0.88, maxInstances: 2 })
   }
 
   async playDevourRed() {
     this.duckMusic(0.58, 0.45)
-    await this.playSprite('devour_red', { gain: 1.1, maxInstances: 2 })
+    await this.playSprite('devour_red', { gain: 0.84, maxInstances: 2 })
   }
 
   async playDevourYellow() {
-    await this.playSprite('devour_yellow', { gain: 1.05, maxInstances: 3 })
+    await this.playSprite('devour_yellow', { gain: 0.86, maxInstances: 3 })
   }
 
   async playCombo(comboCount: number) {
     const playbackRate = Math.min(1.45, 1 + Math.max(0, comboCount - 2) * 0.06)
-    await this.playSprite('combo_base', { gain: 0.8, playbackRate, maxInstances: 2 })
+    await this.playSprite('combo_base', { gain: 0.68, playbackRate, maxInstances: 2 })
     if (comboCount >= 5) {
-      await this.playSprite('combo_x5_bonus', { gain: 0.72, maxInstances: 1 })
+      await this.playSprite('combo_x5_bonus', { gain: 0.62, maxInstances: 1 })
     }
   }
 

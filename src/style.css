@@ -164,7 +164,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: space-between;
-  padding: 24px 16px 40px;
+  padding: calc(24px + env(safe-area-inset-top, 0px)) 16px calc(40px + env(safe-area-inset-bottom, 0px));
   color: #f7f4ec;
   pointer-events: none;
   overflow: hidden;
@@ -196,26 +196,29 @@
   z-index: 0;
   pointer-events: none;
   background:
-    radial-gradient(circle at 50% 26%, rgba(184, 222, 255, 0.12), transparent 16%),
-    radial-gradient(circle at 24% 78%, rgba(120, 92, 255, 0.12), transparent 14%),
-    radial-gradient(circle at 80% 68%, rgba(255, 186, 106, 0.14), transparent 18%);
+    linear-gradient(180deg, rgba(6, 10, 18, 0.58), rgba(6, 10, 18, 0.72)),
+    radial-gradient(circle at 50% 26%, rgba(184, 222, 255, 0.06), transparent 16%),
+    radial-gradient(circle at 24% 78%, rgba(120, 92, 255, 0.05), transparent 14%),
+    radial-gradient(circle at 80% 68%, rgba(255, 186, 106, 0.06), transparent 18%);
 }
 
 .main-menu__header {
   width: 100%;
   display: flex;
   justify-content: center;
-  padding-top: 10px;
+  padding-top: max(6px, env(safe-area-inset-top, 0px));
 }
 
 .main-menu__brand-lockup {
   display: inline-flex;
   align-items: center;
   gap: 14px;
+  max-width: 100%;
 }
 
 .main-menu__logo-block {
   text-align: left;
+  min-width: 0;
 }
 
 .main-menu__logo-kicker {
@@ -248,8 +251,8 @@
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  padding-top: min(16vh, 128px);
-  gap: 18px;
+  padding-top: min(18vh, 144px);
+  gap: 14px;
 }
 
 .main-menu__hero-shell {
@@ -386,8 +389,14 @@
 }
 
 .main-menu__action-stack {
-  width: min(320px, calc(100vw - 40px));
+  width: min(360px, calc(100vw - 40px));
   display: grid;
+  gap: 12px;
+}
+
+.main-menu__secondary-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
 }
 
@@ -421,7 +430,6 @@
 }
 
 .main-menu__action--play {
-  min-height: 94px;
   border-color: rgba(255, 223, 148, 0.46);
   background:
     linear-gradient(135deg, rgba(255, 204, 85, 0.9), rgba(241, 134, 53, 0.86)),
@@ -429,6 +437,13 @@
   color: #fff8ee;
   box-shadow: 0 22px 46px rgba(104, 49, 8, 0.3);
   animation: main-menu-breathe 2.8s ease-in-out infinite;
+}
+
+.main-menu__action--secondary {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(70, 88, 110, 0.06)),
+    rgba(12, 18, 26, 0.12);
+  box-shadow: 0 10px 24px rgba(3, 8, 14, 0.16);
 }
 
 .main-menu__action-title,
@@ -965,12 +980,14 @@
   }
 
   .main-menu {
-    padding: 14px 12px 24px;
+    padding: calc(14px + env(safe-area-inset-top, 0px)) 12px calc(24px + env(safe-area-inset-bottom, 0px));
   }
 
   .main-menu__brand-lockup {
     flex-direction: row;
     gap: 10px;
+    width: min(100%, 420px);
+    justify-content: center;
   }
 
   .main-menu__logo-block {
@@ -984,6 +1001,7 @@
 
   .main-menu__logo {
     font-size: clamp(40px, 14vw, 58px);
+    letter-spacing: 0.04em;
   }
 
   .main-menu__centerpiece {
@@ -1017,5 +1035,40 @@
   .main-menu__action-subtitle {
     margin-top: 4px;
     font-size: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .main-menu__header {
+    padding-top: max(4px, env(safe-area-inset-top, 0px));
+  }
+
+  .main-menu__brand-lockup {
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .main-menu__logo-block {
+    text-align: center;
+  }
+
+  .main-menu__logo-kicker {
+    letter-spacing: 0.24em;
+  }
+
+  .main-menu__logo {
+    margin-top: 6px;
+    font-size: clamp(34px, 12vw, 48px);
+    letter-spacing: 0.03em;
+    line-height: 0.96;
+  }
+
+  .main-menu__hero-shell--brand {
+    width: min(18vw, 58px);
+  }
+
+  .main-menu__centerpiece {
+    padding-top: min(20vh, 144px);
   }
 }

@@ -2,11 +2,11 @@ import React from 'react'
 import type { CubeData } from '../../game/model/types'
 import { CubeMesh } from './CubeMesh'
 
-export function GridRoot({ cubes, gridSize, interactive = true, allowedCubeIds }: { cubes: CubeData[]; gridSize: number; interactive?: boolean; allowedCubeIds?: string[] | null }) {
+export function GridRoot({ cubes, gridSize, interactive = true, allowedCubeIds, reducedQuality = false }: { cubes: CubeData[]; gridSize: number; interactive?: boolean; allowedCubeIds?: string[] | null; reducedQuality?: boolean }) {
   return (
     <group>
       {cubes.map((cube) => (
-        <CubeMesh key={cube.id} allowedCubeIds={allowedCubeIds} cube={cube} gridSize={gridSize} interactive={interactive} />
+        <CubeMesh key={cube.id} allowedCubeIds={allowedCubeIds} cube={cube} gridSize={gridSize} interactive={interactive} reducedQuality={reducedQuality} />
       ))}
     </group>
   )

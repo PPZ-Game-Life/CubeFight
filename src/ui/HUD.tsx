@@ -45,14 +45,6 @@ const bottomRowStyle: React.CSSProperties = {
   gap: 'var(--hud-gap-lg, 16px)'
 }
 
-const bottomRowRightStyle: React.CSSProperties = {
-  display: 'flex',
-  justifyContent: 'flex-end',
-  alignItems: 'flex-end',
-  gap: 'var(--hud-gap-lg, 16px)',
-  pointerEvents: 'none'
-}
-
 const glassPanelStyle: React.CSSProperties = {
   border: '1px solid rgba(255, 255, 255, 0.18)',
   borderRadius: 20,
@@ -121,20 +113,6 @@ const bombDockStyle: React.CSSProperties = {
   backgroundImage: 'linear-gradient(180deg, rgba(255, 214, 148, 0.16), rgba(63, 73, 82, 0.22))'
 }
 
-const debugDockStyle: React.CSSProperties = {
-  ...glassPanelStyle,
-  pointerEvents: 'auto',
-  width: 'var(--hud-bomb-width, 148px)',
-  minHeight: 'var(--hud-bomb-height, 92px)',
-  padding: 'var(--hud-bomb-padding, 14px 16px 16px)',
-  appearance: 'none',
-  cursor: 'pointer',
-  textAlign: 'center',
-  color: '#f4f1ea',
-  transition: 'transform 160ms ease, box-shadow 160ms ease, opacity 160ms ease, border-color 160ms ease',
-  backgroundImage: 'linear-gradient(180deg, rgba(145, 220, 255, 0.14), rgba(48, 71, 92, 0.24))'
-}
-
 const utilityButtonStyle: React.CSSProperties = {
   pointerEvents: 'auto',
   width: 'var(--hud-utility-size, 46px)',
@@ -171,6 +149,13 @@ const fpsPanelStyle: React.CSSProperties = {
   ...glassPanelStyle,
   minWidth: 72,
   padding: '8px 12px 10px',
+  pointerEvents: 'none'
+}
+
+const diagnosticsPanelStyle: React.CSSProperties = {
+  ...glassPanelStyle,
+  minWidth: 210,
+  padding: '10px 12px 12px',
   pointerEvents: 'none'
 }
 
@@ -326,6 +311,32 @@ function FpsPanel({ label, fps }: { label: string; fps: number }) {
   )
 }
 
+function EndlessDiagnosticsPanel({
+  dominantBlueId,
+  dominantBlueState,
+  pityCount,
+  stage,
+  t
+}: {
+  dominantBlueId: string | null
+  dominantBlueState: 'active' | 'observe' | 'none'
+  pityCount: number
+  stage: 'early' | 'mid' | 'late' | 'endgame'
+  t: ReturnType<typeof useLocale>['t']
+}) {
+  return (
+    <section className="hud__endless-diagnostics-panel" data-testid="hud-endless-diagnostics-panel" style={diagnosticsPanelStyle}>
+      <div style={compactLabelStyle}>{t.hud.endlessDiagnostics}</div>
+      <div style={{ marginTop: 8, display: 'grid', gap: 6 }}>
+        <div style={{ ...compactLabelStyle, letterSpacing: '0.08em', lineHeight: 1.4 }}>{t.hud.endlessStageLabel}: {t.hud.endlessStages[stage]}</div>
+        <div style={{ ...compactLabelStyle, letterSpacing: '0.08em', lineHeight: 1.4 }}>{t.hud.endlessDominantBlueLabel}: {dominantBlueId ?? t.hud.endlessNoDominantBlue}</div>
+        <div style={{ ...compactLabelStyle, letterSpacing: '0.08em', lineHeight: 1.4 }}>{t.hud.endlessDominanceStateLabel}: {t.hud.endlessDominanceStates[dominantBlueState]}</div>
+        <div style={{ ...compactLabelStyle, letterSpacing: '0.08em', lineHeight: 1.4 }}>{t.hud.endlessYellowPityLabel}: {pityCount}</div>
+      </div>
+    </section>
+  )
+}
+
 function GameOverlay({ overlay, title, restartLabel, restartDemo }: {
   overlay: 'none' | 'pause' | 'victory' | 'game_over'
   title: string | null
@@ -353,13 +364,15 @@ function GameOverlay({ overlay, title, restartLabel, restartDemo }: {
 
 export function HUD({
   levelInfo,
+  showEndlessDiagnostics = false,
   onBackToLobby,
-  debugAction,
+  showFps = false,
   suppressResultOverlay = false
 }: {
   levelInfo?: LevelHudInfo
+  showEndlessDiagnostics?: boolean
   onBackToLobby: () => void
-  debugAction?: { active: boolean; onToggle: () => void } | null
+  showFps?: boolean
   suppressResultOverlay?: boolean
 }) {
   const { t } = useLocale()
@@ -368,6 +381,7 @@ export function HUD({
     cubes,
     comboCount,
     comboText,
+    endlessDiagnostics,
     gridSize,
     overlay,
     restartDemo,
@@ -386,7 +400,17 @@ export function HUD({
   return (
     <div className="hud" id="ui-overlay" style={rootStyle}>
       <div className="hud__top-right-stack" style={topRightStackStyle}>
-        <FpsPanel fps={fps} label={t.hud.fps} />
+        {showFps ? <FpsPanel fps={fps} label={t.hud.fps} /> : null}
+
+        {showEndlessDiagnostics && endlessDiagnostics ? (
+          <EndlessDiagnosticsPanel
+            dominantBlueId={endlessDiagnostics.dominantBlueId}
+            dominantBlueState={endlessDiagnostics.dominantBlueState}
+            pityCount={endlessDiagnostics.yellowFamilyPityCount}
+            stage={endlessDiagnostics.stage}
+            t={t}
+          />
+        ) : null}
 
         {levelInfo ? (
           <section className="hud__level-panel" data-testid="hud-level-panel" style={objectivePanelStyle}>
@@ -423,32 +447,6 @@ export function HUD({
           <span aria-hidden="true" style={{ fontSize: 22, lineHeight: 1 }}>⌂</span>
         </button>
 
-        <div className="hud__bottom-row-right" style={bottomRowRightStyle}>
-          {debugAction ? (
-            <button
-              aria-label={debugAction.active ? t.hud.stopAutoSolve : t.hud.autoSolve}
-              className="hud__debug-dock"
-              data-testid="hud-debug-auto-solve"
-              style={{
-                ...debugDockStyle,
-                borderColor: debugAction.active ? 'rgba(133, 228, 184, 0.34)' : 'rgba(255, 255, 255, 0.18)',
-                backgroundImage: debugAction.active
-                  ? 'linear-gradient(180deg, rgba(133, 228, 184, 0.18), rgba(45, 88, 69, 0.26))'
-                  : debugDockStyle.backgroundImage
-              }}
-              type="button"
-               onClick={() => {
-                 void audioManager.playUiConfirm()
-                 debugAction.onToggle()
-               }}
-             >
-              <div style={compactLabelStyle}>Debug</div>
-              <div style={{ ...secondaryValueStyle, marginTop: 10, fontSize: 20, color: debugAction.active ? '#b8f3c8' : '#dceef9' }}>
-              {debugAction.active ? t.hud.stopAutoSolve : t.hud.autoSolve}
-            </div>
-          </button>
-          ) : null}
-        </div>
       </div>
 
       <GameOverlay overlay={effectiveOverlay} restartDemo={restartDemo} restartLabel={t.hud.restart} title={overlayTitle} />

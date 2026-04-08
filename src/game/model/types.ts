@@ -1,5 +1,7 @@
 export type CubeColor = 'blue' | 'red' | 'yellow'
 
+export type CubeVariant = 'golden'
+
 export type SliceAxis = 'x' | 'y' | 'z'
 
 export type PlayableDemoVictoryCondition = 'clear_all_red' | 'none'
@@ -27,6 +29,7 @@ export type StatusHintKey =
 export interface CubeData {
   id: string
   color: CubeColor
+  variant?: CubeVariant
   level: number
   x: number
   y: number

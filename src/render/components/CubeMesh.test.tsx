@@ -55,14 +55,14 @@ describe('CubeMesh', () => {
     })
   })
 
-  it('routes clicks from label faces to the cube click handler', () => {
+  it('routes clicks from the cube shell to the cube click handler', () => {
     const { container } = render(<CubeMesh cube={cube({ id: 'blue-a', color: 'blue' })} />)
     const meshes = container.querySelectorAll('mesh')
-    const labelFace = meshes.item(1)
+    const cubeShell = meshes.item(0)
 
-    expect(labelFace).not.toBeNull()
+    expect(cubeShell).not.toBeNull()
 
-    fireEvent.click(labelFace)
+    fireEvent.click(cubeShell)
 
     expect(clickCube).toHaveBeenCalledWith('blue-a')
     expect(clickCube).toHaveBeenCalledTimes(1)
@@ -70,7 +70,7 @@ describe('CubeMesh', () => {
 
   it('does not double dispatch when clicking the cube body mesh', () => {
     const { container } = render(<CubeMesh cube={cube({ id: 'blue-a', color: 'blue' })} />)
-    const cubeBody = container.querySelectorAll('mesh').item(1)
+    const cubeBody = container.querySelectorAll('mesh').item(0)
 
     expect(cubeBody).not.toBeNull()
 
@@ -80,10 +80,12 @@ describe('CubeMesh', () => {
     expect(clickCube).toHaveBeenCalledTimes(1)
   })
 
-  it('renders shell, inner core, and edge outline layers', () => {
+  it('renders shell, rim, and label layers without inner core geometry', () => {
     const { container } = render(<CubeMesh cube={cube({ id: 'yellow-a', color: 'yellow', level: 6 })} />)
 
-    expect(container.querySelectorAll('mesh').length).toBeGreaterThanOrEqual(9)
+    expect(container.querySelectorAll('mesh').length).toBeGreaterThanOrEqual(8)
+    expect(container.querySelectorAll('torusknotgeometry').length).toBe(0)
+    expect(container.querySelectorAll('spheregeometry').length).toBe(0)
     expect(container.querySelector('linesegments')).toBeNull()
   })
 
@@ -93,6 +95,12 @@ describe('CubeMesh', () => {
     const { container } = render(<CubeMesh cube={cube({ id: 'blue-a', color: 'blue', level: 3 })} />)
 
     expect(container.querySelectorAll('torusgeometry').length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('renders only one label face in reduced-quality mode', () => {
+    const { container } = render(<CubeMesh cube={cube({ id: 'blue-a', color: 'blue', level: 3 })} reducedQuality />)
+
+    expect(container.querySelectorAll('planegeometry').length).toBe(1)
   })
 
 })

@@ -1,6 +1,6 @@
 import type { CubeData, PlayableDemoConfig } from '../model/types'
 
-const SUPPORTED_PLAYABLE_DEMO_GRID_SIZES = [3, 4, 5] as const
+const SUPPORTED_PLAYABLE_DEMO_GRID_SIZES = [2, 3, 4, 5] as const
 
 export class PlayableDemoConfigError extends Error {
   readonly issues: string[]
@@ -23,6 +23,7 @@ function isCubeData(value: unknown): value is CubeData {
 
   return typeof value.id === 'string'
     && (value.color === 'blue' || value.color === 'red' || value.color === 'yellow')
+    && (value.variant === undefined || value.variant === 'golden')
     && typeof value.level === 'number'
     && typeof value.x === 'number'
     && typeof value.y === 'number'

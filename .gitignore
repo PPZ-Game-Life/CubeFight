@@ -32,3 +32,6 @@ docs/
 
 # Local worktrees
 .worktrees/
+
+# Local temp files
+temp/

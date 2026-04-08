@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { buildNoMoveBoardWithRed, buildPlayableDemoConfig } from '../config/playableDemo'
 import { PlayableDemoConfigError } from '../config/playableDemoValidation'
+import { buildPlayableEndlessConfig } from '../levels/endlessConfig'
 import type { CubeData, PlayableDemoConfig } from '../model/types'
 import { createGameStore } from './gameStore'
 
@@ -20,6 +21,18 @@ function createStoreConfig(cubes: CubeData[], bombCount = 1): PlayableDemoConfig
   const config = buildPlayableDemoConfig()
   config.board.cubes = cubes.map((item) => ({ ...item }))
   config.inventory.bombCount = bombCount
+  return config
+}
+
+function createEndlessStoreConfig(gridSize: 3 | 4 | 5, cubes: CubeData[]): PlayableDemoConfig {
+  const config = buildPlayableEndlessConfig(gridSize)
+  config.board.cubes = cubes.map((item) => ({ ...item }))
+
+  if (config.endless) {
+    config.endless.refillDelayMs = 1
+    config.endless.spawnIntervalSteps = 1
+  }
+
   return config
 }
 
@@ -980,5 +993,52 @@ describe('gameStore public actions', () => {
     store.getState().showLayerFromTop(1)
 
     expect(store.getState().bombTargetIds).toEqual(['yellow-mid'])
+  })
+
+  it('can replenish a low-blue endless board with an extra blue cube', () => {
+    vi.useFakeTimers()
+
+    const randomValues = [0, 0, 0]
+    const store = createGameStore({
+      config: createEndlessStoreConfig(3, [
+        cube({ id: 'blue-main', color: 'blue', level: 3, x: 0, y: 0, z: 0 }),
+        cube({ id: 'red-target', color: 'red', level: 1, x: 1, y: 0, z: 0 })
+      ]),
+      random: () => randomValues.shift() ?? 0
+    })
+
+    store.getState().selectCube('blue-main')
+    store.getState().commitBoardAction('red-target')
+    vi.runAllTimers()
+
+    const spawnedBlue = store.getState().cubes.find((cube) => cube.id.startsWith('endless_spawn_'))
+
+    expect(spawnedBlue?.color).toBe('blue')
+
+    vi.useRealTimers()
+  })
+
+  it('allows high-stage endless yellow spawns to upgrade into golden variants', () => {
+    vi.useFakeTimers()
+
+    const randomValues = [0.9, 0, 0, 0]
+    const store = createGameStore({
+      config: createEndlessStoreConfig(5, [
+        cube({ id: 'blue-main', color: 'blue', level: 7, x: 0, y: 0, z: 0 }),
+        cube({ id: 'red-target', color: 'red', level: 1, x: 1, y: 0, z: 0 })
+      ]),
+      random: () => randomValues.shift() ?? 0
+    })
+
+    store.getState().selectCube('blue-main')
+    store.getState().commitBoardAction('red-target')
+    vi.runAllTimers()
+
+    const spawnedYellow = store.getState().cubes.find((cube) => cube.id.startsWith('endless_spawn_'))
+
+    expect(spawnedYellow?.color).toBe('yellow')
+    expect(spawnedYellow?.variant).toBe('golden')
+
+    vi.useRealTimers()
   })
 })

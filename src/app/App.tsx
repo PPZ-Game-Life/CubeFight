@@ -2,8 +2,8 @@ import React from 'react'
 
 import { AudioRuntime } from '../audio/AudioRuntime'
 import { audioManager } from '../audio/audioManager'
-import { buildPlayableConfigFromLevel, getLevelById, levelCatalog } from '../game/levels/levelCatalog'
-import { buildPlayableDemoConfig } from '../game/config/playableDemo'
+import { buildPlayableConfigFromLevel, getLevelById } from '../game/levels/levelCatalog'
+import { buildPlayableEndlessConfig } from '../game/levels/endlessConfig'
 import { getLevelOneTutorialStep, LEVEL_ONE_TUTORIAL_STEP_COUNT } from '../game/levels/levelOneTutorial'
 import { evaluateLevel } from '../game/levels/levelProgress'
 import type { Locale } from '../game/model/types'
@@ -11,6 +11,21 @@ import { getValidTargets } from '../game/state/demoRules'
 import type { GameStoreSnapshot } from '../game/state/gameStore'
 import { GameStoreProvider, useGameStore } from '../game/state/gameStore'
 import { getVisibleValidTargets } from '../game/state/demoRules'
+import {
+  GRID_UNLOCK_THRESHOLDS,
+  getHighestMergeLevel,
+  getHighestUnlockedGridSize,
+  getWeeklyLeaderboard,
+  normalizeProgress,
+  readStoredProgress,
+  submitWeeklyLeaderboardScore,
+  updateProgressFromEndlessRun,
+  writeStoredProgress,
+  type EndlessGridSize,
+  type LeaderboardEntry,
+  type PlayerProgress
+} from './endlessProgress'
+import { getIsNonReleaseBuild, readStoredDebugOptions, writeStoredDebugOptions } from './debugOptions'
 import { LocaleProvider, useLocale } from '../ui/LocaleProvider'
 import { HUD } from '../ui/HUD'
 import { MainMenu } from '../ui/MainMenu'
@@ -19,90 +34,8 @@ import { GameCanvas } from './GameCanvas'
 
 type SessionOverlayState = 'victory' | 'game_over' | 'tutorial_complete' | null
 
-const MENU_SETTINGS_STORAGE_KEY = 'cubefight.menu.settings'
-const PROGRESS_STORAGE_KEY = 'cubefight.progress'
-const CAMPAIGN_FINAL_LEVEL_ID = 10
 const ENDLESS_LEVEL_ID = 999
-const PLAYABLE_LEVEL_IDS = levelCatalog.levels.filter((level) => level.id !== 999).map((level) => level.id)
-const DEFAULT_DEBUG_LEVEL_ID = PLAYABLE_LEVEL_IDS[0] ?? 1
 const TUTORIAL_ADVANCE_DELAY_MS = 900
-
-type StoredMenuSettings = {
-  debugMode: boolean
-  debugLevelId: number
-}
-
-type StoredProgress = {
-  campaignLevelId: number
-  tutorialCompleted: boolean
-  endlessUnlocked: boolean
-}
-
-function formatLevelLabel(levelId: number) {
-  return `Level ${String(levelId).padStart(2, '0')}`
-}
-
-function getNextPlayableLevelId(levelId: number): number | null {
-  const currentIndex = PLAYABLE_LEVEL_IDS.indexOf(levelId)
-  if (currentIndex === -1) {
-    return null
-  }
-
-  return PLAYABLE_LEVEL_IDS[currentIndex + 1] ?? null
-}
-
-function normalizeDebugLevelId(levelId: number) {
-  return PLAYABLE_LEVEL_IDS.includes(levelId) ? levelId : DEFAULT_DEBUG_LEVEL_ID
-}
-
-function readStoredMenuSettings(): StoredMenuSettings {
-  if (typeof window === 'undefined') {
-    return { debugMode: false, debugLevelId: DEFAULT_DEBUG_LEVEL_ID }
-  }
-
-  const rawValue = window.localStorage.getItem(MENU_SETTINGS_STORAGE_KEY)
-  if (!rawValue) {
-    return { debugMode: false, debugLevelId: DEFAULT_DEBUG_LEVEL_ID }
-  }
-
-  try {
-    const parsed = JSON.parse(rawValue) as Partial<StoredMenuSettings>
-    return {
-      debugMode: parsed.debugMode === true,
-      debugLevelId: normalizeDebugLevelId(typeof parsed.debugLevelId === 'number' ? parsed.debugLevelId : DEFAULT_DEBUG_LEVEL_ID)
-    }
-  } catch {
-    return { debugMode: false, debugLevelId: DEFAULT_DEBUG_LEVEL_ID }
-  }
-}
-
-function readStoredProgress(): StoredProgress {
-  if (typeof window === 'undefined') {
-    return { campaignLevelId: 1, tutorialCompleted: false, endlessUnlocked: false }
-  }
-
-  const rawValue = window.localStorage.getItem(PROGRESS_STORAGE_KEY)
-  if (!rawValue) {
-    return { campaignLevelId: 1, tutorialCompleted: false, endlessUnlocked: false }
-  }
-
-  try {
-    const parsed = JSON.parse(rawValue) as Partial<StoredProgress>
-    const campaignLevelId = typeof parsed.campaignLevelId === 'number' && Number.isInteger(parsed.campaignLevelId)
-      ? Math.max(1, Math.min(CAMPAIGN_FINAL_LEVEL_ID, parsed.campaignLevelId))
-      : 1
-    const tutorialCompleted = parsed.tutorialCompleted === true || campaignLevelId > 1
-    const endlessUnlocked = parsed.endlessUnlocked === true || tutorialCompleted
-
-    return {
-      campaignLevelId,
-      tutorialCompleted,
-      endlessUnlocked
-    }
-  } catch {
-    return { campaignLevelId: 1, tutorialCompleted: false, endlessUnlocked: false }
-  }
-}
 
 function pickMenuDemoMove(snapshot: GameStoreSnapshot): { sourceId: string; targetId: string } | null {
   const visiblePlayableCubes = snapshot.visibleCubes.filter((cube) => cube.color === 'blue' || cube.color === 'yellow')
@@ -134,45 +67,12 @@ function pickMenuDemoMove(snapshot: GameStoreSnapshot): { sourceId: string; targ
   return { sourceId: candidates[0].sourceId, targetId: candidates[0].targetId }
 }
 
-function pickMenuShowcaseLevelId() {
-  const showcaseCandidates = levelCatalog.levels
-    .filter((level) => level.id !== 1 && level.gridSize === 3 && level.initialMap.length >= 4)
-    .map((level) => level.id)
-
-  if (showcaseCandidates.length === 0) {
-    return PLAYABLE_LEVEL_IDS.find((levelId) => levelId > 1) ?? DEFAULT_DEBUG_LEVEL_ID
-  }
-
-  return showcaseCandidates[Math.floor(Math.random() * showcaseCandidates.length)]
-}
-
 function getTutorialMessage(levelId: number, locale: Locale, tutorialInstruction?: Record<Locale, string> | null): string | null {
   if (levelId === 1 && tutorialInstruction) {
     return tutorialInstruction[locale]
   }
 
-  switch (levelId) {
-    case 2:
-      return 'Level 02: full 3x3x3 puzzle. Score 300 to pass.'
-    case 3:
-      return 'Level 03: eliminate every red cube in the chamber.'
-    case 4:
-      return 'Level 04: grow yellow value before you cash it in.'
-    case 5:
-      return 'Level 05: chain three actions fast for a combo x3.'
-    case 6:
-      return 'Rotate the view until you see the hidden target on the back.'
-    case 7:
-      return 'Use slice view to expose the core and remove the red cube.'
-    case 8:
-      return 'Free solve: convert the pyramid setup into a Lv.5 blue cube.'
-    case 9:
-      return 'Use the bomb to break the deadlock, then clean the board.'
-    case 10:
-      return 'Final exam: grow, slice, and defeat the Lv.4 red boss. Endless unlocks after this.'
-    default:
-      return null
-  }
+  return null
 }
 
 function getTutorialAllowedCubeIds(levelId: number, snapshot: GameStoreSnapshot, tutorialStepIndex: number): string[] | null {
@@ -211,10 +111,6 @@ function formatHintStep(step: { action: 'split_merge' | 'split_devour'; [key: st
   return step.action === 'split_merge' ? 'Merge the highlighted same-color pair.' : 'Use blue to devour the matching prey block.'
 }
 
-function shouldAutoSolvePause(snapshot: GameStoreSnapshot) {
-  return snapshot.overlay !== 'none' || snapshot.runState === 'paused' || snapshot.runState === 'resolving' || snapshot.runState === 'targeting_bomb'
-}
-
 function didCompleteTutorialStep(snapshot: GameStoreSnapshot, tutorialStepIndex: number) {
   const tutorialStep = getLevelOneTutorialStep(tutorialStepIndex).step
 
@@ -244,7 +140,7 @@ function hasAnyLegalBoardAction(snapshot: GameStoreSnapshot) {
 }
 
 function SessionOverlay({
-  currentLevelId,
+  sessionLabel,
   mode,
   canAdvance,
   canContinue,
@@ -255,7 +151,7 @@ function SessionOverlay({
   onBackToLobby,
   onStartEndless
 }: {
-  currentLevelId: number
+  sessionLabel: string
   mode: SessionOverlayState
   canAdvance: boolean
   canContinue: boolean
@@ -280,12 +176,11 @@ function SessionOverlay({
   return (
     <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', background: 'rgba(8, 12, 20, 0.42)', pointerEvents: 'auto', zIndex: 30 }}>
       <div style={{ minWidth: 320, maxWidth: 420, borderRadius: 24, border: '1px solid rgba(255,255,255,0.16)', background: 'linear-gradient(180deg, rgba(132,151,160,0.22), rgba(26,35,44,0.32))', boxShadow: '0 18px 42px rgba(6,10,16,0.28)', backdropFilter: 'blur(16px) saturate(140%)', padding: 28, color: '#f7f3ea', textAlign: 'center' }}>
-        <div style={{ fontSize: 12, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(244, 241, 234, 0.66)' }}>{`Level ${String(currentLevelId).padStart(2, '0')}`}</div>
+        <div style={{ fontSize: 12, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(244, 241, 234, 0.66)' }}>{sessionLabel}</div>
         <h2 style={{ margin: '10px 0 0', fontSize: 34 }}>{title}</h2>
         {isTutorialComplete ? <div style={{ marginTop: 10, color: 'rgba(244, 241, 234, 0.82)', lineHeight: 1.55 }}>{t.hud.tutorialCompleteBody}</div> : null}
         <div style={{ display: 'grid', gap: 10, marginTop: 22 }}>
-          {canAdvance ? <button style={overlayButtonStyle(true)} type="button" onClick={onAdvance}>{isTutorialComplete ? t.hud.startLevelTwo : 'Next Level'}</button> : null}
-          {isTutorialComplete ? <button style={overlayButtonStyle(false)} type="button" onClick={onStartEndless}>{t.hud.startEndlessMode}</button> : null}
+          {(canAdvance || isTutorialComplete) ? <button style={overlayButtonStyle(true)} type="button" onClick={isTutorialComplete ? onStartEndless : onAdvance}>{isTutorialComplete ? t.hud.startLevelTwo : 'Next Level'}</button> : null}
           {!isTutorialComplete && canContinue ? <button style={overlayButtonStyle(false)} type="button" onClick={onContinue}>{t.hud.continueRun}</button> : null}
           {!isTutorialComplete ? <button style={overlayButtonStyle(false)} type="button" onClick={onRetry}>{t.hud.restart}</button> : null}
           <button style={overlayButtonStyle(false)} type="button" onClick={onBackToLobby}>{t.hud.lobby}</button>
@@ -309,7 +204,31 @@ function overlayButtonStyle(primary: boolean): React.CSSProperties {
   }
 }
 
-function LevelSessionShell({ currentLevelId, tutorialStepIndex, debugMode, onAdvanceTutorialStep, onBackToLobby, onAdvanceLevel, onRetryLevel, onStartEndless, onCompleteTutorial, canAdvanceToNextLevel }: { currentLevelId: number; tutorialStepIndex: number; debugMode: boolean; onAdvanceTutorialStep: () => void; onBackToLobby: () => void; onAdvanceLevel: () => void; onRetryLevel: () => void; onStartEndless: () => void; onCompleteTutorial: () => void; canAdvanceToNextLevel: boolean }) {
+function LevelSessionShell({
+  currentLevelId,
+  isEndlessSession,
+  showEndlessDiagnostics,
+  showFps,
+  tutorialStepIndex,
+  onAdvanceTutorialStep,
+  onBackToLobby,
+  onRetryLevel,
+  onStartEndless,
+  onCompleteTutorial,
+  onCompleteEndlessRun
+}: {
+  currentLevelId: number
+  isEndlessSession: boolean
+  showEndlessDiagnostics: boolean
+  showFps: boolean
+  tutorialStepIndex: number
+  onAdvanceTutorialStep: () => void
+  onBackToLobby: () => void
+  onRetryLevel: () => void
+  onStartEndless: () => void
+  onCompleteTutorial: () => void
+  onCompleteEndlessRun: (summary: { score: number; maxMergeLevel: number }) => void
+}) {
   const snapshot = useGameStore()
   const { locale, t } = useLocale()
   const level = React.useMemo(() => getLevelById(currentLevelId), [currentLevelId])
@@ -318,13 +237,17 @@ function LevelSessionShell({ currentLevelId, tutorialStepIndex, debugMode, onAdv
   const tutorialBundle = React.useMemo(() => (currentLevelId === 1 ? getLevelOneTutorialStep(tutorialStepIndex) : null), [currentLevelId, tutorialStepIndex])
   const tutorialMessage = getTutorialMessage(currentLevelId, locale, tutorialBundle?.step.instruction)
   const [showHint, setShowHint] = React.useState(false)
-  const [autoSolveEnabled, setAutoSolveEnabled] = React.useState(false)
   const [hasLockedVictory, setHasLockedVictory] = React.useState(false)
   const [continueAfterGoal, setContinueAfterGoal] = React.useState(false)
+  const endlessRunReportedRef = React.useRef(false)
+  const highestMergeLevelRef = React.useRef(getHighestMergeLevel(snapshot.cubes))
   const tutorialAdvanceTimerRef = React.useRef<number | null>(null)
   const lastQueuedTutorialStepRef = React.useRef<number | null>(null)
   const tutorialAllowedCubeIds = React.useMemo(() => getTutorialAllowedCubeIds(currentLevelId, snapshot, tutorialStepIndex), [currentLevelId, snapshot, tutorialStepIndex])
   const tutorialMarkerCubeIds = React.useMemo(() => (currentLevelId === 1 ? getTutorialMarkerCubeIds(snapshot, tutorialStepIndex) : []), [currentLevelId, snapshot, tutorialStepIndex])
+  const sessionLabel = isEndlessSession
+    ? `${t.menu.endlessMode} ${snapshot.gridSize}×${snapshot.gridSize}×${snapshot.gridSize}`
+    : `Level ${String(currentLevelId).padStart(2, '0')}`
 
   const clearTutorialAdvanceTimer = React.useCallback(() => {
     if (tutorialAdvanceTimerRef.current !== null) {
@@ -334,56 +257,33 @@ function LevelSessionShell({ currentLevelId, tutorialStepIndex, debugMode, onAdv
   }, [])
 
   React.useEffect(() => {
-    if (!debugMode) {
-      setAutoSolveEnabled(false)
-    }
-  }, [debugMode])
-
-  React.useEffect(() => {
     setHasLockedVictory(false)
     setContinueAfterGoal(false)
+    endlessRunReportedRef.current = false
+    highestMergeLevelRef.current = getHighestMergeLevel(snapshot.cubes)
     clearTutorialAdvanceTimer()
     lastQueuedTutorialStepRef.current = null
-  }, [clearTutorialAdvanceTimer, currentLevelId, tutorialStepIndex])
+  }, [clearTutorialAdvanceTimer, currentLevelId, isEndlessSession, tutorialStepIndex])
+
+  React.useEffect(() => {
+    highestMergeLevelRef.current = Math.max(highestMergeLevelRef.current, getHighestMergeLevel(snapshot.cubes))
+  }, [snapshot.cubes])
+
+  React.useEffect(() => {
+    if (!isEndlessSession || snapshot.overlay !== 'game_over' || endlessRunReportedRef.current) {
+      return
+    }
+
+    endlessRunReportedRef.current = true
+    onCompleteEndlessRun({
+      score: snapshot.score,
+      maxMergeLevel: highestMergeLevelRef.current
+    })
+  }, [isEndlessSession, onCompleteEndlessRun, snapshot.overlay, snapshot.score])
 
   React.useEffect(() => () => {
     clearTutorialAdvanceTimer()
   }, [currentLevelId, tutorialStepIndex])
-
-  React.useEffect(() => {
-    if (!autoSolveEnabled || shouldAutoSolvePause(snapshot)) {
-      return
-    }
-
-    const timer = globalThis.setTimeout(() => {
-      if (snapshot.selectedCubeId) {
-        if (snapshot.validTargetIds.length > 0) {
-          snapshot.commitBoardAction(snapshot.validTargetIds[0])
-          return
-        }
-
-        if (snapshot.slice.axis) {
-          snapshot.resetSliceView()
-          return
-        }
-
-        snapshot.clearSelection()
-        return
-      }
-
-      const move = pickMenuDemoMove(snapshot)
-      if (move) {
-        snapshot.selectCube(move.sourceId)
-        return
-      }
-
-      if (snapshot.slice.axis) {
-        snapshot.resetSliceView()
-      }
-    }, 240)
-
-    return () => globalThis.clearTimeout(timer)
-  }, [autoSolveEnabled, snapshot])
 
   React.useEffect(() => {
     if (currentLevelId !== 1 || !tutorialBundle) {
@@ -469,11 +369,7 @@ function LevelSessionShell({ currentLevelId, tutorialStepIndex, debugMode, onAdv
     <>
       <AudioRuntime scene="game" />
       <GameCanvas allowedCubeIds={tutorialAllowedCubeIds} centerVisibleCubes={currentLevelId === 1} interactive={sessionOverlay === null} tutorialMarkerCubeIds={tutorialMarkerCubeIds} />
-      <HUD
-        debugAction={debugMode ? { active: autoSolveEnabled, onToggle: () => setAutoSolveEnabled((value) => !value) } : null}
-        onBackToLobby={onBackToLobby}
-        suppressResultOverlay={currentLevelId === 1}
-      />
+      <HUD onBackToLobby={onBackToLobby} showEndlessDiagnostics={showEndlessDiagnostics} showFps={showFps} suppressResultOverlay={currentLevelId === 1} />
       {currentLevelId !== 1 ? <SliceControls /> : null}
       {currentLevelId === 1 && tutorialMessage && !sessionOverlay ? (
         <div style={{ position: 'absolute', left: '50%', top: 132, transform: 'translateX(-50%)', width: 'min(560px, calc(100vw - 40px))', borderRadius: 18, border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(8, 14, 24, 0.52)', boxShadow: '0 14px 28px rgba(4,8,14,0.18)', backdropFilter: 'blur(12px) saturate(140%)', padding: '14px 18px', color: '#eef4f8', zIndex: 20, pointerEvents: tutorialIsInfoStep ? 'auto' : 'none', textAlign: 'center' }}>
@@ -503,12 +399,11 @@ function LevelSessionShell({ currentLevelId, tutorialStepIndex, debugMode, onAdv
         </div>
       ) : null}
       <SessionOverlay
-        canAdvance={sessionOverlay === 'tutorial_complete' || sessionOverlay === 'victory' ? canAdvanceToNextLevel : false}
+        canAdvance={sessionOverlay === 'victory'}
         canContinue={sessionOverlay === 'victory' && canContinueScoring}
-        currentLevelId={currentLevelId}
         headlineOverride={sessionOverlay === 'victory' && canContinueScoring ? t.hud.targetReached : null}
         mode={sessionOverlay}
-        onAdvance={onAdvanceLevel}
+        onAdvance={onBackToLobby}
         onBackToLobby={onBackToLobby}
         onContinue={() => {
           if (!canContinueScoring) {
@@ -519,37 +414,44 @@ function LevelSessionShell({ currentLevelId, tutorialStepIndex, debugMode, onAdv
         }}
         onStartEndless={onStartEndless}
         onRetry={onRetryLevel}
+        sessionLabel={sessionLabel}
       />
     </>
   )
 }
 
 function MenuShell({
-  currentLevelId,
-  tutorialCompleted,
-  endlessUnlocked,
+  progress,
   locale,
+  leaderboardEntries,
+  playerLeaderboardEntry,
+  currentArenaGridSize,
+  debugGridSize,
   debugMode,
-  selectedDebugLevelId,
-  onStartCampaign,
-  onStartEndless,
-  onLocaleChange,
+  debugSettingsAvailable,
+  nextUnlockTarget,
+  onDebugGridSizeChange,
   onDebugModeChange,
-  onSelectedDebugLevelChange,
-  onResetTutorialProgress
+  onResetTutorialProgress,
+  onStartTutorial,
+  onStartEndless,
+  onLocaleChange
 }: {
-  currentLevelId: number
-  tutorialCompleted: boolean
-  endlessUnlocked: boolean
+  progress: PlayerProgress
   locale: Locale
+  leaderboardEntries: LeaderboardEntry[]
+  playerLeaderboardEntry: LeaderboardEntry | null
+  currentArenaGridSize: EndlessGridSize
+  debugGridSize: EndlessGridSize
   debugMode: boolean
-  selectedDebugLevelId: number
-  onStartCampaign: () => void
+  debugSettingsAvailable: boolean
+  nextUnlockTarget: { gridSize: EndlessGridSize; score: number } | null
+  onDebugGridSizeChange: (gridSize: EndlessGridSize) => void
+  onDebugModeChange: (enabled: boolean) => void
+  onResetTutorialProgress: () => void
+  onStartTutorial: () => void
   onStartEndless: () => void
   onLocaleChange: (locale: Locale) => void
-  onDebugModeChange: (enabled: boolean) => void
-  onSelectedDebugLevelChange: (levelId: number) => void
-  onResetTutorialProgress: () => void
 }) {
   const snapshot = useGameStore()
   const { t } = useLocale()
@@ -593,19 +495,23 @@ function MenuShell({
       <AudioRuntime scene="menu" />
       <GameCanvas interactive={false} />
       <MainMenu
-        currentLevelLabel={t.menu.currentLevel(formatLevelLabel(currentLevelId))}
+        currentLevelLabel={t.menu.currentLevel('Level 01')}
+        currentArenaGridSize={currentArenaGridSize}
+        debugGridSize={debugGridSize}
         debugMode={debugMode}
-        endlessUnlocked={endlessUnlocked}
+        debugSettingsAvailable={debugSettingsAvailable}
+        endlessUnlocked={progress.endlessUnlocked}
+        leaderboardEntries={leaderboardEntries}
         locale={locale}
+        onDebugGridSizeChange={onDebugGridSizeChange}
         onDebugModeChange={onDebugModeChange}
-        onLocaleChange={onLocaleChange}
-        onSelectedLevelChange={onSelectedDebugLevelChange}
-        onStartCampaign={onStartCampaign}
-        onStartEndless={onStartEndless}
         onResetTutorialProgress={onResetTutorialProgress}
-        selectableLevels={PLAYABLE_LEVEL_IDS}
-        selectedLevelId={selectedDebugLevelId}
-        tutorialCompleted={tutorialCompleted}
+        onLocaleChange={onLocaleChange}
+        onStartTutorial={onStartTutorial}
+        onStartEndless={onStartEndless}
+        playerLeaderboardEntry={playerLeaderboardEntry}
+        tutorialCompleted={progress.tutorialCompleted}
+        nextUnlockTarget={nextUnlockTarget}
       />
     </>
   )
@@ -613,159 +519,151 @@ function MenuShell({
 
 function CampaignRoot() {
   const { locale, setLocale } = useLocale()
-  const initialMenuSettings = React.useMemo(() => readStoredMenuSettings(), [])
   const initialProgress = React.useMemo(() => readStoredProgress(), [])
-  const [campaignLevelId, setCampaignLevelId] = React.useState(initialProgress.campaignLevelId)
+  const initialDebugOptions = React.useMemo(() => readStoredDebugOptions(), [])
+  const debugSettingsAvailable = React.useMemo(() => getIsNonReleaseBuild(), [])
   const [sessionLevelId, setSessionLevelId] = React.useState(1)
-  const [menuLevelId, setMenuLevelId] = React.useState(() => pickMenuShowcaseLevelId())
+  const [sessionGridSize, setSessionGridSize] = React.useState<EndlessGridSize>(getHighestUnlockedGridSize(initialProgress.bestScore))
   const [screen, setScreen] = React.useState<'menu' | 'game'>('menu')
-  const [sessionMode, setSessionMode] = React.useState<'campaign' | 'endless'>('campaign')
+  const [sessionMode, setSessionMode] = React.useState<'tutorial' | 'endless'>('tutorial')
   const [runNonce, setRunNonce] = React.useState(0)
   const [tutorialStepIndex, setTutorialStepIndex] = React.useState(0)
-  const [tutorialCompleted, setTutorialCompleted] = React.useState(initialProgress.tutorialCompleted)
-  const [endlessUnlocked, setEndlessUnlocked] = React.useState(initialProgress.endlessUnlocked)
-  const [debugMode, setDebugMode] = React.useState(initialMenuSettings.debugMode)
-  const [debugLevelId, setDebugLevelId] = React.useState(initialMenuSettings.debugLevelId)
-  const selectedMenuLevelId = debugMode ? debugLevelId : campaignLevelId
-  const activeLevelId = screen === 'menu' ? menuLevelId : sessionLevelId
+  const [progress, setProgress] = React.useState(initialProgress)
+  const [debugMode, setDebugMode] = React.useState(initialDebugOptions.debugMode)
+  const [debugGridSize, setDebugGridSize] = React.useState<EndlessGridSize>(initialDebugOptions.debugGridSize)
+  const activeLevelId = sessionLevelId
+  const leaderboard = React.useMemo(() => getWeeklyLeaderboard(progress), [progress])
+  const currentArenaGridSize = React.useMemo(() => getHighestUnlockedGridSize(progress.bestScore), [progress.bestScore])
+  const nextUnlockTarget = React.useMemo(() => {
+    const unlockOrder: EndlessGridSize[] = [3, 4, 5]
+    const nextGridSize = unlockOrder.find((size) => size > currentArenaGridSize)
+
+    if (!nextGridSize) {
+      return null
+    }
+
+    return {
+      gridSize: nextGridSize,
+      score: GRID_UNLOCK_THRESHOLDS[nextGridSize]
+    }
+  }, [currentArenaGridSize])
 
   React.useEffect(() => {
-    if (typeof window === 'undefined') {
+    writeStoredProgress(progress)
+  }, [progress])
+
+  React.useEffect(() => {
+    writeStoredDebugOptions({ debugMode, debugGridSize })
+  }, [debugGridSize, debugMode])
+
+  React.useEffect(() => {
+    const normalizedProgress = normalizeProgress(progress)
+    if (normalizedProgress.preferredGridSize !== progress.preferredGridSize) {
+      setProgress(normalizedProgress)
       return
     }
 
-    window.localStorage.setItem(MENU_SETTINGS_STORAGE_KEY, JSON.stringify({ debugMode, debugLevelId }))
-  }, [debugLevelId, debugMode])
+    setSessionGridSize((current) => (current === getHighestUnlockedGridSize(normalizedProgress.bestScore) ? current : getHighestUnlockedGridSize(normalizedProgress.bestScore)))
+  }, [progress])
 
-  React.useEffect(() => {
-    if (typeof window === 'undefined') {
-      return
-    }
-
-    window.localStorage.setItem(PROGRESS_STORAGE_KEY, JSON.stringify({ campaignLevelId, tutorialCompleted, endlessUnlocked }))
-  }, [campaignLevelId, endlessUnlocked, tutorialCompleted])
-
-  const startCampaign = React.useCallback(() => {
+  const startTutorial = React.useCallback(() => {
     void audioManager.playUiConfirm()
-    const targetLevelId = debugMode ? selectedMenuLevelId : (tutorialCompleted ? campaignLevelId : 1)
-    if (targetLevelId === 1) {
-      setTutorialStepIndex(0)
-    }
-    setSessionMode('campaign')
-    setSessionLevelId(targetLevelId)
+    setSessionMode('tutorial')
+    setTutorialStepIndex(0)
+    setSessionLevelId(1)
     setRunNonce((value) => value + 1)
     setScreen('game')
-  }, [campaignLevelId, debugMode, selectedMenuLevelId, tutorialCompleted])
+  }, [])
 
   const startEndless = React.useCallback(() => {
     void audioManager.playUiConfirm()
     setSessionMode('endless')
     setTutorialStepIndex(0)
     setSessionLevelId(ENDLESS_LEVEL_ID)
+    setSessionGridSize(debugMode ? debugGridSize : currentArenaGridSize)
     setRunNonce((value) => value + 1)
     setScreen('game')
-  }, [])
-
-  const resetTutorialProgress = React.useCallback(() => {
-    setTutorialCompleted(false)
-    setEndlessUnlocked(false)
-    setCampaignLevelId(1)
-    setTutorialStepIndex(0)
-    setMenuLevelId(pickMenuShowcaseLevelId())
-  }, [])
+  }, [currentArenaGridSize, debugGridSize, debugMode])
 
   const playableConfig = React.useMemo(() => {
-    if (screen === 'game' && sessionMode === 'campaign' && sessionLevelId === 1) {
+    if (screen === 'game' && sessionMode === 'tutorial' && sessionLevelId === 1) {
       return getLevelOneTutorialStep(tutorialStepIndex).config
     }
 
     if (screen === 'game' && sessionMode === 'endless') {
-      const endlessConfig = buildPlayableConfigFromLevel(ENDLESS_LEVEL_ID)
-      const endlessBoardSeed = buildPlayableDemoConfig()
-      endlessConfig.board = endlessBoardSeed.board
-      return endlessConfig
+      return buildPlayableEndlessConfig(sessionGridSize)
+    }
+
+    if (screen === 'menu') {
+      return buildPlayableEndlessConfig(3)
     }
 
     return buildPlayableConfigFromLevel(activeLevelId)
-  }, [activeLevelId, screen, sessionLevelId, sessionMode, tutorialStepIndex])
-  const tutorialStoreSegment = screen === 'game' && sessionMode === 'campaign' && sessionLevelId === 1 ? `:tutorial-${tutorialStepIndex}` : ''
-  const storeKey = `${screen}:${activeLevelId}:${runNonce}${tutorialStoreSegment}`
-  const debugNextLevelId = getNextPlayableLevelId(sessionLevelId)
-  const canAdvanceDebugRun = sessionMode === 'campaign' && debugMode && debugNextLevelId !== null
-  const canAdvanceCampaignRun = sessionMode === 'campaign' && !debugMode && sessionLevelId < CAMPAIGN_FINAL_LEVEL_ID
+  }, [activeLevelId, screen, sessionGridSize, sessionLevelId, sessionMode, tutorialStepIndex])
+  const tutorialStoreSegment = screen === 'game' && sessionMode === 'tutorial' && sessionLevelId === 1 ? `:tutorial-${tutorialStepIndex}` : ''
+  const storeKey = `${screen}:${activeLevelId}:${sessionGridSize}:${runNonce}${tutorialStoreSegment}`
 
   return (
     <GameStoreProvider config={playableConfig} storeKey={storeKey}>
       {screen === 'menu' ? (
         <MenuShell
-          currentLevelId={selectedMenuLevelId}
+          currentArenaGridSize={currentArenaGridSize}
+          debugGridSize={debugGridSize}
           debugMode={debugMode}
-          endlessUnlocked={endlessUnlocked}
+          debugSettingsAvailable={debugSettingsAvailable}
+          leaderboardEntries={leaderboard.entries}
           locale={locale}
+          onDebugGridSizeChange={setDebugGridSize}
           onDebugModeChange={setDebugMode}
+          onResetTutorialProgress={() => {
+            setTutorialStepIndex(0)
+            setSessionMode('tutorial')
+            setSessionLevelId(1)
+            setProgress((current) => normalizeProgress({
+              ...current,
+              tutorialCompleted: false,
+              endlessUnlocked: false
+            }))
+          }}
           onLocaleChange={setLocale}
-          onSelectedDebugLevelChange={(levelId) => setDebugLevelId(normalizeDebugLevelId(levelId))}
-          onResetTutorialProgress={resetTutorialProgress}
-          onStartCampaign={startCampaign}
+          onStartTutorial={startTutorial}
           onStartEndless={startEndless}
-          selectedDebugLevelId={debugLevelId}
-          tutorialCompleted={tutorialCompleted}
+          playerLeaderboardEntry={leaderboard.playerEntry}
+          progress={progress}
+          nextUnlockTarget={nextUnlockTarget}
         />
       ) : (
         <LevelSessionShell
           key={`level-session-${sessionLevelId}-${runNonce}`}
-          canAdvanceToNextLevel={canAdvanceDebugRun || canAdvanceCampaignRun}
           currentLevelId={sessionLevelId}
-          debugMode={debugMode}
+          isEndlessSession={sessionMode === 'endless'}
+          showEndlessDiagnostics={debugMode && sessionMode === 'endless'}
+          showFps={debugMode}
           tutorialStepIndex={tutorialStepIndex}
           onCompleteTutorial={() => {
-            setTutorialCompleted(true)
-            setEndlessUnlocked(true)
-            setCampaignLevelId((value) => Math.max(2, value))
+            setProgress((current) => normalizeProgress({
+              ...current,
+              tutorialCompleted: true,
+              endlessUnlocked: true
+            }))
+          }}
+          onCompleteEndlessRun={({ score, maxMergeLevel }) => {
+            setProgress((current) => {
+              const nextProgress = updateProgressFromEndlessRun(current, score, maxMergeLevel)
+              submitWeeklyLeaderboardScore(nextProgress, score, maxMergeLevel)
+              return nextProgress
+            })
           }}
           onAdvanceTutorialStep={() => {
             setTutorialStepIndex((value) => value + 1)
           }}
-          onAdvanceLevel={() => {
-            if (sessionMode === 'endless') {
-              setMenuLevelId(pickMenuShowcaseLevelId())
-              setScreen('menu')
-              return
-            }
-
-            if (debugMode) {
-              if (debugNextLevelId !== null) {
-                setSessionLevelId(debugNextLevelId)
-                setTutorialStepIndex(0)
-                setRunNonce((value) => value + 1)
-                return
-              }
-
-              setMenuLevelId(pickMenuShowcaseLevelId())
-              setScreen('menu')
-              return
-            }
-
-            if (sessionLevelId < CAMPAIGN_FINAL_LEVEL_ID) {
-              setCampaignLevelId((value) => value + 1)
-              setSessionLevelId((value) => value + 1)
-              setTutorialStepIndex(0)
-              setRunNonce((value) => value + 1)
-              return
-            }
-
-            setEndlessUnlocked(true)
-            setMenuLevelId(pickMenuShowcaseLevelId())
-            setScreen('menu')
-          }}
           onBackToLobby={() => {
             setTutorialStepIndex(0)
-            setMenuLevelId(pickMenuShowcaseLevelId())
             setScreen('menu')
           }}
           onStartEndless={startEndless}
           onRetryLevel={() => {
-            if (sessionMode === 'campaign' && sessionLevelId === 1) {
+            if (sessionMode === 'tutorial' && sessionLevelId === 1) {
               setTutorialStepIndex(0)
             }
             setRunNonce((value) => value + 1)
