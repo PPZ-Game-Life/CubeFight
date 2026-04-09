@@ -682,7 +682,7 @@ CampaignRoot.onStart()
 - **移动端 DPR 限幅**：检测到粗指针设备时，`Canvas.dpr` 从桌面档 `1~1.75` 下调为 `1~1.25`，优先保住 GPU fill-rate。
 - **后处理分级**：粗指针设备关闭 `SSAO`，仅保留弱化版 `Bloom`，避免接触阴影在中低端手机上吞掉稳定帧率。
 - **逐帧分配治理**：`CubeMesh` 的朝向标签更新不再在 `useFrame` 中反复 `new Vector3/Quaternion/Matrix4`，统一复用 scratch 对象，减少 GC 抖动导致的掉帧尖峰。
-- **移动端方块简化**：粗指针设备只保留单个朝向镜头的数字面，并将壳体从 `MeshPhysicalMaterial` 降级为更便宜的 `MeshStandardMaterial`，进一步压低透明折射与每帧面片朝向成本。
+- **移动端方块简化**：粗指针设备仍保留 `MeshStandardMaterial` 壳体降级来压低透明折射成本，但数字面已恢复为全六面显示，保证手机上也能完整读数，不再做“只显示单个数字面”的视觉裁剪。
 
 ### 11.22 主菜单安全区适配（2026-04-08）
 - **适配范围**：主菜单根容器与顶部品牌区接入 `env(safe-area-inset-top/bottom)`，兼容刘海屏、手势条和浏览器 UI 挤压场景。

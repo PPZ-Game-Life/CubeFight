@@ -97,10 +97,10 @@ describe('CubeMesh', () => {
     expect(container.querySelectorAll('torusgeometry').length).toBeGreaterThanOrEqual(1)
   })
 
-  it('renders only one label face in reduced-quality mode', () => {
+  it('still renders all label faces in reduced-quality mode', () => {
     const { container } = render(<CubeMesh cube={cube({ id: 'blue-a', color: 'blue', level: 3 })} reducedQuality />)
 
-    expect(container.querySelectorAll('planegeometry').length).toBe(1)
+    expect(container.querySelectorAll('planegeometry').length).toBe(6)
   })
 
 })

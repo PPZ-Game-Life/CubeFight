@@ -104,8 +104,6 @@ const faceConfigs = [
   { key: 'bottom', position: [0, -CUBE_SIZE * 0.52, 0], normal: new THREE.Vector3(0, -1, 0) }
 ] as const
 
-const reducedFaceConfigs = [faceConfigs[0]]
-
 const scratchCameraPosition = new THREE.Vector3()
 const scratchMeshWorldQuaternion = new THREE.Quaternion()
 const scratchInverseQuaternion = new THREE.Quaternion()
@@ -162,7 +160,7 @@ function CubeMeshInner({ cube, gridSize = 3, interactive = true, allowedCubeIds,
   const isMergeSource = mergeAnimation?.sourceId === cube.id
   const isMergeTarget = mergeAnimation?.targetId === cube.id
   const faction = factionVisuals(cube)
-  const activeFaceConfigs = reducedQuality ? reducedFaceConfigs : faceConfigs
+  const activeFaceConfigs = faceConfigs
   const labelTexture = useMemo(() => createLabelTexture(cube.level, visual.dimmed), [cube.level, visual.dimmed])
   const shellGeometry = useMemo(() => createShellGeometry(), [])
   const labelMaterial = useMemo(() => new THREE.MeshBasicMaterial({
