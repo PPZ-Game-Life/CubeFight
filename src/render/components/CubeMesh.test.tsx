@@ -4,10 +4,20 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { CubeData, MergeAnimationState } from '../../game/model/types'
 
+const { playSelect } = vi.hoisted(() => ({
+  playSelect: vi.fn()
+}))
+
 const clickCube = vi.fn()
 
 vi.mock('@react-three/fiber', () => ({
   useFrame: vi.fn()
+}))
+
+vi.mock('../../audio/audioManager', () => ({
+  audioManager: {
+    playSelect
+  }
 }))
 
 const getCubeVisualState = vi.fn(() => ({ selected: false, highlighted: false, dimmed: false }))
@@ -36,6 +46,7 @@ function cube(overrides: Partial<CubeData> & Pick<CubeData, 'id' | 'color'>): Cu
 describe('CubeMesh', () => {
   beforeEach(() => {
     clickCube.mockReset()
+    playSelect.mockReset()
     getCubeVisualState.mockReset()
     getCubeVisualState.mockReturnValue({ selected: false, highlighted: false, dimmed: false })
 
@@ -66,6 +77,7 @@ describe('CubeMesh', () => {
 
     expect(clickCube).toHaveBeenCalledWith('blue-a')
     expect(clickCube).toHaveBeenCalledTimes(1)
+    expect(playSelect).toHaveBeenCalledTimes(1)
   })
 
   it('does not double dispatch when clicking the cube body mesh', () => {

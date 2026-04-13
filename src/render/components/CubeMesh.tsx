@@ -2,6 +2,7 @@ import React, { memo, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
+import { audioManager } from '../../audio/audioManager'
 import { useGameStore } from '../../game/state/gameStore'
 import type { CubeData } from '../../game/model/types'
 import { CUBE_COLORS, CUBE_GAP, CUBE_SIZE } from '../../game/config/config'
@@ -148,6 +149,7 @@ function CubeMeshInner({ cube, gridSize = 3, interactive = true, allowedCubeIds,
   const groupRef = useRef<THREE.Group>(null)
   const ringRef = useRef<THREE.Mesh>(null)
   const labelRefs = useRef<Array<THREE.Mesh | null>>([])
+  const clickFeedbackAtRef = useRef(0)
   const position = useMemo(() => toWorldPosition(cube.x, cube.y, cube.z, gridSize), [cube.x, cube.y, cube.z, gridSize])
   const visual = getCubeVisualState(cube.id)
   const emissive = useMemo(() => (
@@ -156,7 +158,7 @@ function CubeMeshInner({ cube, gridSize = 3, interactive = true, allowedCubeIds,
       : new THREE.Color('#000000')
   ), [cube.color, cube.level, visual.highlighted, visual.selected])
   const opacity = visual.dimmed ? 0.3 : 1
-  const scale = visual.selected ? 1.08 : visual.highlighted ? 1.04 : 1
+  const scale = visual.selected ? 1.12 : visual.highlighted ? 1.07 : 1
   const isMergeSource = mergeAnimation?.sourceId === cube.id
   const isMergeTarget = mergeAnimation?.targetId === cube.id
   const faction = factionVisuals(cube)
@@ -168,6 +170,10 @@ function CubeMeshInner({ cube, gridSize = 3, interactive = true, allowedCubeIds,
     transparent: true,
     side: THREE.DoubleSide,
     depthWrite: false,
+    depthTest: true,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
     toneMapped: false
   }), [labelTexture])
   const shellBaseColor = cube.variant === 'golden' ? '#f6c945' : CUBE_COLORS[cube.color]
@@ -186,10 +192,13 @@ function CubeMeshInner({ cube, gridSize = 3, interactive = true, allowedCubeIds,
   useFrame(({ camera }) => {
     const group = groupRef.current
     if (!group) return
+    const clickElapsedMs = Date.now() - clickFeedbackAtRef.current
+    const clickFeedbackProgress = clickElapsedMs >= 0 && clickElapsedMs <= 220 ? 1 - (clickElapsedMs / 220) : 0
+    const clickFeedbackScale = clickFeedbackProgress > 0 ? 1 + Math.sin(clickFeedbackProgress * Math.PI) * 0.06 : 1
 
     if (!mergeAnimation || (!isMergeSource && !isMergeTarget)) {
       group.position.set(position[0], position[1], position[2])
-      group.scale.setScalar(scale)
+      group.scale.setScalar(scale * clickFeedbackScale)
     } else {
       const progress = Math.min(1, (Date.now() - mergeAnimation.startTime) / mergeAnimation.duration)
       const eased = easeOutCubic(progress)
@@ -207,26 +216,26 @@ function CubeMeshInner({ cube, gridSize = 3, interactive = true, allowedCubeIds,
           THREE.MathUtils.lerp(position[2], targetPosition[2], eased)
         )
         const mergeScale = THREE.MathUtils.lerp(scale, 0.82, eased)
-        group.scale.setScalar(mergeScale)
+        group.scale.setScalar(mergeScale * clickFeedbackScale)
       } else if (isMergeTarget) {
         const pulse = progress < 0.35
           ? THREE.MathUtils.lerp(0.94, 1.16, progress / 0.35)
           : THREE.MathUtils.lerp(1.16, 1, (progress - 0.35) / 0.65)
         group.position.set(position[0], position[1], position[2])
-        group.scale.setScalar(scale * pulse)
+        group.scale.setScalar(scale * pulse * clickFeedbackScale)
       }
     }
 
     const now = Date.now() * 0.001
-    rimMaterial.uniforms.uIntensity.value = visual.selected ? 1.28 : visual.highlighted ? 1.08 : 0.88
+    rimMaterial.uniforms.uIntensity.value = (visual.selected ? 1.44 : visual.highlighted ? 1.18 : 0.96) + clickFeedbackProgress * 0.7
 
     const ring = ringRef.current
     if (ring) {
       const pulse = visual.selected
-        ? 1 + Math.sin(now * 5.4 + cube.level) * 0.08
+        ? 1 + Math.sin(now * 5.4 + cube.level) * 0.12
         : visual.highlighted
-          ? 1 + Math.sin(now * 4.2 + cube.level) * 0.05
-          : 1
+          ? 1 + Math.sin(now * 4.2 + cube.level) * 0.08
+          : 1 + clickFeedbackProgress * 0.18
       ring.scale.setScalar(pulse)
     }
 
@@ -273,16 +282,18 @@ function CubeMeshInner({ cube, gridSize = 3, interactive = true, allowedCubeIds,
     }
   })
 
-  const emissiveIntensity = isMergeTarget && mergeAnimation
-    ? 0.62
-    : visual.selected ? 0.45 : visual.highlighted ? 0.3 : cube.level > 1 ? 0.18 : 0
+  const clickFeedbackElapsedMs = Date.now() - clickFeedbackAtRef.current
+  const clickFeedbackProgress = clickFeedbackElapsedMs >= 0 && clickFeedbackElapsedMs <= 220 ? 1 - (clickFeedbackElapsedMs / 220) : 0
+  const emissiveIntensity = (isMergeTarget && mergeAnimation
+    ? 0.72
+    : visual.selected ? 0.56 : visual.highlighted ? 0.38 : cube.level > 1 ? 0.2 : 0.04) + clickFeedbackProgress * 0.26
   const shellThickness = cube.level >= 6 ? 0.08 : cube.level >= 4 ? 0.11 : 0.15
   const shellRoughness = cube.level <= 3 ? Math.max(0.3, faction.shellRoughness + 0.08) : cube.level <= 6 ? faction.shellRoughness : Math.max(0.16, faction.shellRoughness - 0.02)
   const shellTransmission = cube.level <= 3 ? Math.max(0.48, faction.shellTransmission - 0.08) : cube.level <= 6 ? faction.shellTransmission : Math.min(0.82, faction.shellTransmission + 0.04)
   const shellOpacity = visual.selected ? 1 : visual.highlighted ? Math.min(1, faction.shellOpacity + 0.03) : faction.shellOpacity
-  const showSelectionRing = visual.selected || visual.highlighted
-  const ringColor = visual.selected ? '#ffffff' : faction.coreAccent
-  const ringOpacity = visual.selected ? 0.9 : 0.42
+  const showSelectionRing = visual.selected || visual.highlighted || clickFeedbackProgress > 0
+  const ringColor = clickFeedbackProgress > 0 ? '#ffffff' : visual.selected ? '#ffffff' : faction.coreAccent
+  const ringOpacity = clickFeedbackProgress > 0 ? 0.96 : visual.selected ? 0.94 : 0.56
 
   return (
     <group
@@ -295,6 +306,8 @@ function CubeMeshInner({ cube, gridSize = 3, interactive = true, allowedCubeIds,
           return
         }
         event.stopPropagation()
+        clickFeedbackAtRef.current = Date.now()
+        void audioManager.playSelect()
         clickCube(cube.id)
       }}>
         <primitive attach="geometry" object={shellGeometry} />

@@ -1,11 +1,10 @@
-import { OrbitControls, PerspectiveCamera } from '@react-three/drei'
+import { PerspectiveCamera, TrackballControls } from '@react-three/drei'
 import { useThree } from '@react-three/fiber'
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
+
 import { useGameStore } from '../../game/state/gameStore'
 
-const MIN_POLAR_ANGLE = THREE.MathUtils.degToRad(65)
-const MAX_POLAR_ANGLE = THREE.MathUtils.degToRad(115)
 function getResponsiveCameraDistance(gridSize: number, aspectRatio: number) {
   const baseDistance = Math.max(8, gridSize * 2.4)
 
@@ -17,18 +16,30 @@ function getResponsiveCameraDistance(gridSize: number, aspectRatio: number) {
   return baseDistance + portraitCompensation
 }
 
+function wrapAngle(angle: number) {
+  const tau = Math.PI * 2
+  return ((angle % tau) + tau) % tau
+}
+
 export function CameraRig() {
   const controlsRef = useRef<any>(null)
   const { camera, size } = useThree()
   const { gridSize, updateCameraAngles } = useGameStore()
-  const aspectRatio = React.useMemo(() => size.width / Math.max(size.height, 1), [size.height, size.width])
-  const defaultDistance = React.useMemo(() => getResponsiveCameraDistance(gridSize, aspectRatio), [aspectRatio, gridSize])
-  const minDistance = React.useMemo(() => defaultDistance * 0.72, [defaultDistance])
-  const maxDistance = React.useMemo(() => defaultDistance * 1.95, [defaultDistance])
+  const aspectRatio = useMemo(() => size.width / Math.max(size.height, 1), [size.height, size.width])
+  const defaultDistance = useMemo(() => getResponsiveCameraDistance(gridSize, aspectRatio), [aspectRatio, gridSize])
+  const minDistance = useMemo(() => defaultDistance * 0.72, [defaultDistance])
+  const maxDistance = useMemo(() => defaultDistance * 1.95, [defaultDistance])
 
-  useEffect(() => {
-    camera.up.set(0, 1, 0)
-  }, [camera])
+  const syncCameraAngles = React.useCallback(() => {
+    const controls = controlsRef.current
+    if (!controls) {
+      return
+    }
+
+    const offset = camera.position.clone().sub(controls.target)
+    const spherical = new THREE.Spherical().setFromVector3(offset)
+    updateCameraAngles(wrapAngle(spherical.theta), spherical.phi)
+  }, [camera, updateCameraAngles])
 
   useEffect(() => {
     const controls = controlsRef.current
@@ -44,26 +55,25 @@ export function CameraRig() {
     controls.minDistance = minDistance
     controls.maxDistance = maxDistance
     controls.update()
-  }, [camera, defaultDistance, maxDistance, minDistance])
+    syncCameraAngles()
+  }, [camera, defaultDistance, maxDistance, minDistance, syncCameraAngles])
 
   return (
     <>
       <PerspectiveCamera makeDefault position={[0, 0, defaultDistance]} fov={60} near={0.1} far={1000} />
-      <OrbitControls
+      <TrackballControls
         ref={controlsRef}
-        enablePan={false}
-        enableZoom
+        noPan
+        noRotate={false}
+        noZoom={false}
         target={[0, 0, 0]}
         minDistance={minDistance}
         maxDistance={maxDistance}
-        minPolarAngle={MIN_POLAR_ANGLE}
-        maxPolarAngle={MAX_POLAR_ANGLE}
-        dampingFactor={0.12}
-        onChange={() => {
-          const controls = controlsRef.current
-          if (!controls) return
-          updateCameraAngles(controls.getAzimuthalAngle(), controls.getPolarAngle())
-        }}
+        rotateSpeed={4}
+        zoomSpeed={1.1}
+        staticMoving={false}
+        dynamicDampingFactor={0.12}
+        onChange={syncCameraAngles}
       />
     </>
   )
