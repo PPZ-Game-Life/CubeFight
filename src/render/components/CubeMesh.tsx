@@ -150,6 +150,7 @@ function CubeMeshInner({ cube, gridSize = 3, interactive = true, allowedCubeIds,
   const ringRef = useRef<THREE.Mesh>(null)
   const labelRefs = useRef<Array<THREE.Mesh | null>>([])
   const clickFeedbackAtRef = useRef(0)
+  const lastActivationAtRef = useRef(0)
   const position = useMemo(() => toWorldPosition(cube.x, cube.y, cube.z, gridSize), [cube.x, cube.y, cube.z, gridSize])
   const visual = getCubeVisualState(cube.id)
   const emissive = useMemo(() => (
@@ -295,21 +296,41 @@ function CubeMeshInner({ cube, gridSize = 3, interactive = true, allowedCubeIds,
   const ringColor = clickFeedbackProgress > 0 ? '#ffffff' : visual.selected ? '#ffffff' : faction.coreAccent
   const ringOpacity = clickFeedbackProgress > 0 ? 0.96 : visual.selected ? 0.94 : 0.56
 
+  const activateCube = (event: { stopPropagation: () => void }) => {
+    if (!interactive || (allowedCubeIds && !allowedCubeIds.includes(cube.id))) {
+      return
+    }
+
+    const now = Date.now()
+    if (now - lastActivationAtRef.current < 80) {
+      event.stopPropagation()
+      return
+    }
+
+    lastActivationAtRef.current = now
+    event.stopPropagation()
+    clickFeedbackAtRef.current = now
+    void audioManager.playSelect()
+    clickCube(cube.id)
+  }
+
   return (
     <group
       ref={groupRef}
       position={position}
       scale={scale}
     >
-      <mesh onClick={(event) => {
-        if (!interactive || (allowedCubeIds && !allowedCubeIds.includes(cube.id))) {
-          return
-        }
-        event.stopPropagation()
-        clickFeedbackAtRef.current = Date.now()
-        void audioManager.playSelect()
-        clickCube(cube.id)
-      }}>
+      <mesh
+        onPointerDown={(event) => {
+          if (!interactive || (allowedCubeIds && !allowedCubeIds.includes(cube.id))) {
+            return
+          }
+
+          event.stopPropagation()
+        }}
+        onPointerUp={activateCube}
+        onClick={activateCube}
+      >
         <primitive attach="geometry" object={shellGeometry} />
         {reducedQuality ? (
           <meshStandardMaterial
