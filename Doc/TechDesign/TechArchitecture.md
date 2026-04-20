@@ -181,7 +181,12 @@ highlightValidTargets(sourceCube: Cube) {
 }
 ```
 
-### 4.3 Combo系统
+### 4.3 盘面动效强化规范 (2026-04-20)
+- **合并动画**: 源块不再只做直线位移，改为“轻微抛物线 + 轻量 squash/stretch + 落点冲击波”。目标块先轻压缩，再放大回弹，避免合成时只有位置变化、打击感不足。**注意**：为避免相机近距离时方块外壳瞬时铺满视口造成黑闪，合并过程不做大幅旋转，缩放幅度保持保守。
+- **引导提示特效**: 新手引导的目标标记升级为“线框包围盒 + 地面脉冲环 + 中心微光核”的三层提示，并附带轻微悬浮。目标是让玩家一眼锁定可点对象，同时不盖住数字与材质细节。
+- **性能约束**: 所有提示特效继续使用基础几何体和 `meshBasicMaterial` / `lineBasicMaterial`，不引入额外纹理与后处理通道，保证移动端 draw call 增幅可控。
+
+### 4.4 Combo系统
 ```typescript
 class ComboSystem {
   private comboCount: number = 0;
@@ -203,6 +208,29 @@ class ComboSystem {
   }
 }
 ```
+
+### 4.5 相机安全距离约束 (2026-04-20)
+- **问题背景**: 玻璃壳 `meshPhysicalMaterial + transmission` 在镜头过近、且方块发生缩放/运动时，容易出现整屏被单个壳体遮挡的“黑闪/染色闪”。
+- **处理原则**: 相机最小缩放距离不能只按体验主观设置，必须基于棋盘包围半径做下限约束；同时适度抬高 `near` 裁剪面，减少镜头贴面时的近裁剪异常。
+- **当前策略**: `minDistance = max(defaultDistance * 0.88, boardBoundingRadius + 3.6)`，`PerspectiveCamera.near = 0.3`。
+
+### 4.6 镜头拖拽手感调优 (2026-04-20)
+- **问题背景**: 在移动端/触屏上，`TrackballControls` 默认阻尼手感偏“黏”，玩家滑动时会感觉魔方跟手不足。
+- **当前策略**: 提高 `rotateSpeed`，轻微提高 `zoomSpeed`，并启用 `staticMoving` 让拖拽期间更直接地跟随手势，优先保证盘面观察的响应速度。
+
+### 4.7 相机无滚转约束 (2026-04-20)
+- **问题背景**: `TrackballControls` 允许相机在拖拽过程中发生 roll，玩家容易把棋盘转成“歪斜姿态”，影响空间判断与切面语义理解。
+- **当前策略**: 改用 `OrbitControls`，保持世界上方向固定，旋转只允许围绕目标点做 `yaw + pitch`，不允许 roll。并用 `minPolarAngle / maxPolarAngle` 限制俯仰范围，避免相机翻顶或钻底。
+
+### 4.8 近景玻璃材质保护 (2026-04-20)
+- **问题背景**: 即便限制了相机最小距离，玩家在放大观察时，镜头与方块玻璃壳距离仍可能进入危险区。`meshPhysicalMaterial` 的 `transmission + thickness` 在近景下会出现随机黑闪或整屏染色。
+- **当前策略**: 基于“相机到方块中心距离”做动态材质降级。距离进入近景阈值后，平滑降低 `transmission / thickness / reflectivity / clearcoat`，让材质从玻璃态过渡到稳定态，优先保证画面稳定，不让单个方块壳体污染整屏。
+- **硬保护补充**: 当距离进入危险区时，直接将 `transmission = 0`、`thickness = 0`，把近景材质强制退化为非玻璃态。这个策略优先级高于视觉一致性，用来兜底消灭放大观察时的黑闪。
+- **调试日志**: 非发布版本且开启 debug mode 时，材质在 `glass / fallback` 两种状态切换会打印 `console.debug`，用于确认黑闪时是否已经触发近景硬保护。
+
+### 4.9 后处理黑闪排查开关 (2026-04-20)
+- **排查目的**: 用户反馈近景放大时仍有随机黑闪，且未命中材质保护日志，需要对 `EffectComposer / Bloom` 做二分排查。
+- **当前策略**: 临时关闭 `src/render/components/Effects.tsx` 中的后处理输出，先确认黑闪是否来自后处理链路，再决定是否恢复 Bloom 或改为更保守参数。
 
 ---
 

@@ -3,6 +3,7 @@ import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
 import { audioManager } from '../../audio/audioManager'
+import { readStoredDebugOptions } from '../../app/debugOptions'
 import { useGameStore } from '../../game/state/gameStore'
 import type { CubeData } from '../../game/model/types'
 import { CUBE_COLORS, CUBE_GAP, CUBE_SIZE } from '../../game/config/config'
@@ -15,6 +16,12 @@ function toWorldPosition(x: number, y: number, z: number, gridSize: number): [nu
 
 function easeOutCubic(t: number) {
   return 1 - Math.pow(1 - t, 3)
+}
+
+function easeInOutCubic(t: number) {
+  return t < 0.5
+    ? 4 * t * t * t
+    : 1 - Math.pow(-2 * t + 2, 3) / 2
 }
 
 function createShellGeometry() {
@@ -119,6 +126,7 @@ const scratchPlaneUp = new THREE.Vector3()
 const scratchPlaneRight = new THREE.Vector3()
 const scratchCorrectedUp = new THREE.Vector3()
 const scratchRotationMatrix = new THREE.Matrix4()
+const scratchWorldPosition = new THREE.Vector3()
 
 function createLabelTexture(level: number, dimmed: boolean) {
   const canvas = document.createElement('canvas')
@@ -148,9 +156,12 @@ function CubeMeshInner({ cube, gridSize = 3, interactive = true, allowedCubeIds,
   const { clickCube, getCubeVisualState, mergeAnimation } = useGameStore()
   const groupRef = useRef<THREE.Group>(null)
   const ringRef = useRef<THREE.Mesh>(null)
+  const mergeWaveRef = useRef<THREE.Mesh>(null)
+  const physicalMaterialRef = useRef<THREE.MeshPhysicalMaterial>(null)
   const labelRefs = useRef<Array<THREE.Mesh | null>>([])
   const clickFeedbackAtRef = useRef(0)
   const lastActivationAtRef = useRef(0)
+  const lastMaterialDebugStateRef = useRef<'fallback' | 'glass' | null>(null)
   const position = useMemo(() => toWorldPosition(cube.x, cube.y, cube.z, gridSize), [cube.x, cube.y, cube.z, gridSize])
   const visual = getCubeVisualState(cube.id)
   const emissive = useMemo(() => (
@@ -200,9 +211,11 @@ function CubeMeshInner({ cube, gridSize = 3, interactive = true, allowedCubeIds,
     if (!mergeAnimation || (!isMergeSource && !isMergeTarget)) {
       group.position.set(position[0], position[1], position[2])
       group.scale.setScalar(scale * clickFeedbackScale)
+      group.rotation.set(0, 0, 0)
     } else {
       const progress = Math.min(1, (Date.now() - mergeAnimation.startTime) / mergeAnimation.duration)
       const eased = easeOutCubic(progress)
+      const mergeBounce = Math.sin(progress * Math.PI)
 
       if (isMergeSource) {
         const targetPosition = toWorldPosition(
@@ -213,22 +226,71 @@ function CubeMeshInner({ cube, gridSize = 3, interactive = true, allowedCubeIds,
         )
         group.position.set(
           THREE.MathUtils.lerp(position[0], targetPosition[0], eased),
-          THREE.MathUtils.lerp(position[1], targetPosition[1], eased),
+          THREE.MathUtils.lerp(position[1], targetPosition[1], eased) + mergeBounce * 0.08,
           THREE.MathUtils.lerp(position[2], targetPosition[2], eased)
         )
-        const mergeScale = THREE.MathUtils.lerp(scale, 0.82, eased)
+        const mergeScale = THREE.MathUtils.lerp(scale * 1.01, 0.88, easeInOutCubic(progress))
         group.scale.setScalar(mergeScale * clickFeedbackScale)
+        group.rotation.set(0, 0, 0)
       } else if (isMergeTarget) {
-        const pulse = progress < 0.35
-          ? THREE.MathUtils.lerp(0.94, 1.16, progress / 0.35)
-          : THREE.MathUtils.lerp(1.16, 1, (progress - 0.35) / 0.65)
+        const pulse = progress < 0.18
+          ? THREE.MathUtils.lerp(0.96, 1.01, progress / 0.18)
+          : progress < 0.48
+            ? THREE.MathUtils.lerp(1.01, 1.12, (progress - 0.18) / 0.3)
+            : THREE.MathUtils.lerp(1.12, 1, (progress - 0.48) / 0.52)
         group.position.set(position[0], position[1], position[2])
         group.scale.setScalar(scale * pulse * clickFeedbackScale)
+        group.rotation.set(0, 0, 0)
       }
     }
 
     const now = Date.now() * 0.001
-    rimMaterial.uniforms.uIntensity.value = (visual.selected ? 1.44 : visual.highlighted ? 1.18 : 0.96) + clickFeedbackProgress * 0.7
+    rimMaterial.uniforms.uIntensity.value = (
+      isMergeTarget && mergeAnimation
+        ? 1.96
+        : isMergeSource && mergeAnimation
+          ? 1.52
+          : visual.selected ? 1.44 : visual.highlighted ? 1.18 : 0.96
+    ) + clickFeedbackProgress * 0.7
+
+    const physicalMaterial = physicalMaterialRef.current
+    if (physicalMaterial) {
+      group.getWorldPosition(scratchWorldPosition)
+      const cameraDistance = scratchWorldPosition.distanceTo(camera.position)
+      const hardFallbackDistance = 4.8
+      const restoreGlassDistance = 6.2
+      const glassFactor = THREE.MathUtils.clamp((cameraDistance - hardFallbackDistance) / (restoreGlassDistance - hardFallbackDistance), 0, 1)
+      const useFallback = cameraDistance <= hardFallbackDistance + 0.05
+
+      physicalMaterial.transmission = useFallback ? 0 : shellTransmission * glassFactor
+      physicalMaterial.thickness = useFallback ? 0 : shellThickness * (0.3 + glassFactor * 0.7)
+      physicalMaterial.reflectivity = useFallback ? 0.08 : 0.12 + glassFactor * 0.58
+      physicalMaterial.clearcoat = useFallback ? 0.08 : 0.18 + glassFactor * 0.82
+      physicalMaterial.attenuationDistance = useFallback ? 0.01 : 0.35 + glassFactor * 1.05
+      physicalMaterial.ior = useFallback ? 1.02 : cube.color === 'yellow' ? 1.22 : cube.color === 'red' ? 1.14 : 1.18
+      physicalMaterial.opacity = isMergeSource
+        ? Math.max(0.45, opacity * 0.72)
+        : useFallback
+          ? Math.max(0.98, opacity)
+          : Math.max(0.9, opacity * shellOpacity)
+
+      if (typeof window !== 'undefined' && readStoredDebugOptions().debugMode) {
+        const nextDebugState: 'fallback' | 'glass' = useFallback ? 'fallback' : 'glass'
+        if (lastMaterialDebugStateRef.current !== nextDebugState) {
+          lastMaterialDebugStateRef.current = nextDebugState
+          console.warn('[CubeMesh material safety]', {
+            cubeId: cube.id,
+            color: cube.color,
+            level: cube.level,
+            cameraDistance: Number(cameraDistance.toFixed(3)),
+            mode: nextDebugState,
+            transmission: Number(physicalMaterial.transmission.toFixed(3)),
+            thickness: Number(physicalMaterial.thickness.toFixed(3)),
+            opacity: Number(physicalMaterial.opacity.toFixed(3))
+          })
+        }
+      }
+    }
 
     const ring = ringRef.current
     if (ring) {
@@ -238,6 +300,20 @@ function CubeMeshInner({ cube, gridSize = 3, interactive = true, allowedCubeIds,
           ? 1 + Math.sin(now * 4.2 + cube.level) * 0.08
           : 1 + clickFeedbackProgress * 0.18
       ring.scale.setScalar(pulse)
+    }
+
+    const mergeWave = mergeWaveRef.current
+    if (mergeWave) {
+      if (isMergeTarget && mergeAnimation) {
+        const progress = Math.min(1, (Date.now() - mergeAnimation.startTime) / mergeAnimation.duration)
+        const waveProgress = easeOutCubic(progress)
+        const material = mergeWave.material as THREE.MeshBasicMaterial
+        mergeWave.visible = true
+        mergeWave.scale.setScalar(0.72 + waveProgress * 1.1)
+        material.opacity = Math.max(0, 0.52 - waveProgress * 0.52)
+      } else {
+        mergeWave.visible = false
+      }
     }
 
     camera.getWorldPosition(scratchCameraPosition)
@@ -286,7 +362,7 @@ function CubeMeshInner({ cube, gridSize = 3, interactive = true, allowedCubeIds,
   const clickFeedbackElapsedMs = Date.now() - clickFeedbackAtRef.current
   const clickFeedbackProgress = clickFeedbackElapsedMs >= 0 && clickFeedbackElapsedMs <= 220 ? 1 - (clickFeedbackElapsedMs / 220) : 0
   const emissiveIntensity = (isMergeTarget && mergeAnimation
-    ? 0.72
+    ? 0.92
     : visual.selected ? 0.56 : visual.highlighted ? 0.38 : cube.level > 1 ? 0.2 : 0.04) + clickFeedbackProgress * 0.26
   const shellThickness = cube.level >= 6 ? 0.08 : cube.level >= 4 ? 0.11 : 0.15
   const shellRoughness = cube.level <= 3 ? Math.max(0.3, faction.shellRoughness + 0.08) : cube.level <= 6 ? faction.shellRoughness : Math.max(0.16, faction.shellRoughness - 0.02)
@@ -346,6 +422,7 @@ function CubeMeshInner({ cube, gridSize = 3, interactive = true, allowedCubeIds,
           />
         ) : (
           <meshPhysicalMaterial
+            ref={physicalMaterialRef}
             color={shellColor}
             metalness={0.02}
             roughness={shellRoughness}
@@ -376,6 +453,10 @@ function CubeMeshInner({ cube, gridSize = 3, interactive = true, allowedCubeIds,
           <meshBasicMaterial color={ringColor} transparent opacity={ringOpacity} depthWrite={false} toneMapped={false} />
         </mesh>
       ) : null}
+      <mesh ref={mergeWaveRef} raycast={() => null} position={[0, -CUBE_SIZE * 0.53, 0]} rotation={[-Math.PI / 2, 0, 0]} visible={false}>
+        <ringGeometry args={[0.34, 0.5, 48]} />
+        <meshBasicMaterial color="#f8fdff" transparent opacity={0} depthWrite={false} toneMapped={false} />
+      </mesh>
       {activeFaceConfigs.map((config, index) => (
         <mesh
           key={config.key}

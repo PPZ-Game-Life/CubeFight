@@ -1,8 +1,9 @@
-import { PerspectiveCamera, TrackballControls } from '@react-three/drei'
+import { OrbitControls, PerspectiveCamera } from '@react-three/drei'
 import { useFrame, useThree } from '@react-three/fiber'
 import React, { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 
+import { CUBE_GAP, CUBE_SIZE } from '../../game/config/config'
 import { useGameStore } from '../../game/state/gameStore'
 
 const RESET_ANIMATION_DURATION_MS = 280
@@ -34,6 +35,12 @@ function getResponsiveCameraDistance(gridSize: number, aspectRatio: number) {
   return baseDistance + portraitCompensation
 }
 
+function getBoardBoundingRadius(gridSize: number) {
+  const spacing = CUBE_SIZE + CUBE_GAP
+  const halfExtent = ((gridSize - 1) * spacing) / 2 + CUBE_SIZE * 0.5
+  return Math.sqrt(3) * halfExtent
+}
+
 function wrapAngle(angle: number) {
   const tau = Math.PI * 2
   return ((angle % tau) + tau) % tau
@@ -45,7 +52,8 @@ export function CameraRig() {
   const { gridSize, updateCameraAngles } = useGameStore()
   const aspectRatio = useMemo(() => size.width / Math.max(size.height, 1), [size.height, size.width])
   const defaultDistance = useMemo(() => getResponsiveCameraDistance(gridSize, aspectRatio), [aspectRatio, gridSize])
-  const minDistance = useMemo(() => defaultDistance * 0.72, [defaultDistance])
+  const boardBoundingRadius = useMemo(() => getBoardBoundingRadius(gridSize), [gridSize])
+  const minDistance = useMemo(() => Math.max(defaultDistance * 0.88, boardBoundingRadius + 3.6), [boardBoundingRadius, defaultDistance])
   const maxDistance = useMemo(() => defaultDistance * 1.95, [defaultDistance])
   const defaultOffset = useMemo(() => new THREE.Vector3(0, 0, defaultDistance), [defaultDistance])
   const resetAnimationRef = useRef<ResetAnimationState | null>(null)
@@ -129,19 +137,22 @@ export function CameraRig() {
 
   return (
     <>
-      <PerspectiveCamera makeDefault position={[0, 0, defaultDistance]} fov={60} near={0.1} far={1000} />
-      <TrackballControls
+      <PerspectiveCamera makeDefault position={[0, 0, defaultDistance]} fov={60} near={0.3} far={1000} />
+      <OrbitControls
         ref={controlsRef}
-        noPan
-        noRotate={false}
-        noZoom={false}
+        enablePan={false}
+        enableRotate
+        enableZoom
         target={[0, 0, 0]}
         minDistance={minDistance}
         maxDistance={maxDistance}
-        rotateSpeed={4}
-        zoomSpeed={1.1}
-        staticMoving={false}
-        dynamicDampingFactor={0.12}
+        rotateSpeed={0.95}
+        zoomSpeed={0.95}
+        enableDamping
+        dampingFactor={0.08}
+        minPolarAngle={THREE.MathUtils.degToRad(55)}
+        maxPolarAngle={THREE.MathUtils.degToRad(125)}
+        screenSpacePanning={false}
         onChange={syncCameraAngles}
       />
     </>
