@@ -23,7 +23,7 @@ describe('App main menu flow', () => {
     expect(screen.getByTestId('main-menu-logo')).toBeInTheDocument()
     expect(screen.getByTestId('main-menu-hero')).toBeInTheDocument()
     expect(screen.getByTestId('main-menu-actions')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Leaderboard/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Local Weekly Records/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Settings/i })).toBeInTheDocument()
     expect(screen.queryByTestId('hud-stat-bar')).not.toBeInTheDocument()
     expect(screen.getByTestId('game-canvas')).toHaveAttribute('data-interactive', 'false')
@@ -98,8 +98,8 @@ describe('App main menu flow', () => {
     fireEvent.click(screen.getByTestId('main-menu-leaderboard'))
 
     expect(screen.getByTestId('main-menu-leaderboard-dialog')).toBeInTheDocument()
-    expect(screen.getByText(/Endless King/i)).toBeInTheDocument()
-    expect(screen.getByTestId('leaderboard-entry-1')).toBeInTheDocument()
+    expect(screen.getByText(/Local Weekly Best/i)).toBeInTheDocument()
+    expect(screen.getByTestId('leaderboard-empty')).toBeInTheDocument()
   })
 
   it('shows debug controls in settings on non-release builds', () => {

@@ -16,7 +16,7 @@ export default {
     startGame: 'Start Game',
     currentLevel: (levelLabel: string) => `Current: ${levelLabel}`,
     endlessMode: 'Endless Mode',
-    endlessHint: (gridSize: number) => `Current arena ${gridSize}×${gridSize}×${gridSize}. Leaderboards track your best single run.`,
+    endlessHint: (gridSize: number) => `Current arena ${gridSize}×${gridSize}×${gridSize}. Local records track your best single run.`,
     startGameHint: (currentGridSize: number, nextGridSize: number, score: number) => `Current ${currentGridSize}×${currentGridSize}×${currentGridSize} · Unlock ${nextGridSize}×${nextGridSize}×${nextGridSize} at ${score}`,
     startGameHintMax: (currentGridSize: number) => `Current ${currentGridSize}×${currentGridSize}×${currentGridSize} · All arenas unlocked`,
     debugStartHint: (gridSize: number) => `Debug start ${gridSize}×${gridSize}×${gridSize} · FPS enabled`,
@@ -30,11 +30,12 @@ export default {
     unlockHint: 'Unlock after the tutorial',
     skinShop: 'Skin Shop',
     skinTeaser: 'New skin',
-    leaderboard: 'Leaderboard',
-    leaderboardHint: 'Tracks high scores from Endless Mode',
-    weeklyLadder: 'Endless King · Weekly',
-    weeklyLadderHint: 'Shows weekly best single-run scores and top merge badges',
-    yourRank: 'Your Rank',
+    leaderboard: 'Local Weekly Records',
+    leaderboardHint: 'Tracks local Endless Mode records',
+    weeklyLadder: 'Local Weekly Best',
+    weeklyLadderHint: 'Basic Launch fallback: local weekly records only. Global leaderboard opens after server integration.',
+    yourRank: 'Your Record',
+    noLocalRecord: 'No local weekly record yet. Finish an Endless run to create one.',
     debugMode: 'Debug Mode',
     debugModeHint: 'Visible only in non-release builds. Enables FPS and direct 3×3×3 / 4×4×4 / 5×5×5 board selection.',
     debugGridSize: 'Cube Count',
@@ -48,7 +49,7 @@ export default {
       en: 'English'
     },
     closeSettings: 'Close Settings',
-    closeLeaderboard: 'Close Leaderboard'
+    closeLeaderboard: 'Close Records'
   },
   hud: {
     lobby: 'Lobby',

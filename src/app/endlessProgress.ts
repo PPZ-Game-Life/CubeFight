@@ -29,19 +29,6 @@ type WeeklyLeaderboardState = {
 const PROGRESS_STORAGE_KEY = 'cubefight.progress'
 const LEADERBOARD_STORAGE_KEY = 'cubefight.leaderboard.weekly'
 
-const BOT_NAMES = [
-  'CUBE-ACE',
-  'MERGE-X',
-  'VOIDFOX',
-  'PIXEL-M',
-  'RIFT-9',
-  'NOVA3D',
-  'SHIFT-A',
-  'GLINT',
-  'STACKER',
-  'BLUE-42'
-] as const
-
 export const GRID_UNLOCK_THRESHOLDS: Record<EndlessGridSize, number> = {
   2: 0,
   3: 0,
@@ -220,43 +207,6 @@ function writeWeeklyLeaderboardState(state: WeeklyLeaderboardState) {
   window.localStorage.setItem(LEADERBOARD_STORAGE_KEY, JSON.stringify(state))
 }
 
-function hashString(input: string) {
-  let hash = 2166136261
-
-  for (let index = 0; index < input.length; index += 1) {
-    hash ^= input.charCodeAt(index)
-    hash = Math.imul(hash, 16777619)
-  }
-
-  return hash >>> 0
-}
-
-function createSeededRandom(seedSource: string) {
-  let seed = hashString(seedSource)
-
-  return () => {
-    seed = (1664525 * seed + 1013904223) >>> 0
-    return seed / 4294967296
-  }
-}
-
-function buildBotEntries(weekKey: string): Array<Omit<LeaderboardEntry, 'rank' | 'isCurrentPlayer'>> {
-  const random = createSeededRandom(`cubefight:${weekKey}`)
-
-  return BOT_NAMES.map((name, index) => {
-    const scoreFloor = 1400 + (BOT_NAMES.length - index) * 420
-    const scoreCeiling = 86000 - index * 1900
-    const score = Math.max(scoreFloor, Math.floor(scoreFloor + random() * Math.max(2000, scoreCeiling - scoreFloor)))
-    const maxMergeLevel = Math.min(9, 2 + Math.floor(random() * 7))
-
-    return {
-      playerId: name,
-      score,
-      maxMergeLevel
-    }
-  })
-}
-
 export function submitWeeklyLeaderboardScore(progress: PlayerProgress, score: number, maxMergeLevel: number) {
   const weeklyState = readWeeklyLeaderboardState()
   const normalizedScore = Math.max(0, Math.floor(score))
@@ -279,7 +229,7 @@ export function submitWeeklyLeaderboardScore(progress: PlayerProgress, score: nu
 
 export function getWeeklyLeaderboard(progress: PlayerProgress): { entries: LeaderboardEntry[]; playerEntry: LeaderboardEntry | null } {
   const weeklyState = readWeeklyLeaderboardState()
-  const rawEntries = [...buildBotEntries(weeklyState.weekKey)]
+  const rawEntries: Array<Omit<LeaderboardEntry, 'rank' | 'isCurrentPlayer'>> = []
 
   if (weeklyState.playerEntry) {
     rawEntries.push(weeklyState.playerEntry)

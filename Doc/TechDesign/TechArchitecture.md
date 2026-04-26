@@ -221,6 +221,11 @@ class ComboSystem {
 ### 4.7 相机无滚转约束 (2026-04-20)
 - **问题背景**: `TrackballControls` 允许相机在拖拽过程中发生 roll，玩家容易把棋盘转成“歪斜姿态”，影响空间判断与切面语义理解。
 - **当前策略**: 改用 `OrbitControls`，保持世界上方向固定，旋转只允许围绕目标点做 `yaw + pitch`，不允许 roll。并用 `minPolarAngle / maxPolarAngle` 限制俯仰范围，避免相机翻顶或钻底。
+- **交互约束**: 移除双击回正，避免玩家在高频点击/拖拽时误触导致视角被强制重置。
+
+### 4.7.1 主菜单布局调优 (2026-04-20)
+- **问题背景**: 主菜单按钮和主显示区域整体偏下，首屏重心不够稳定。
+- **当前策略**: 收紧 `.main-menu__centerpiece` 顶部留白，桌面端从 `min(18vh, 144px)` 调整到 `min(8vh, 72px)`，移动端同步上移，保证主操作按钮进入更靠上的视觉焦点区域。
 
 ### 4.8 近景玻璃材质保护 (2026-04-20)
 - **问题背景**: 即便限制了相机最小距离，玩家在放大观察时，镜头与方块玻璃壳距离仍可能进入危险区。`meshPhysicalMaterial` 的 `transmission + thickness` 在近景下会出现随机黑闪或整屏染色。
@@ -787,7 +792,18 @@ CampaignRoot.onStart()
 - **实现原则**：反馈增强优先走局部 mesh 动画与已有 sprite 音效，不引入整屏闪烁或重型后处理，避免再次把移动端稳定帧率打穿。
 - **数字面保真**：极端俯仰角下，数字面当前保留 `depthTest` 以维持正确前后遮挡，同时通过 `polygonOffset` 与贴面外推避免被自身透明壳体吞掉，解决“文字消失”和“数字穿透过多”之间的平衡问题。
 
+### 11.33 CrazyGames Basic Launch SDK 收口（2026-04-26）
+- **Basic Launch 策略**：CrazyGames Basic Launch 阶段不接广告、不接 banner、不接激励视频。平台文档明确 Basic Launch 的 KPI 追踪自动完成，且即使接入 SDK 广告也会禁用；当前优先保证转化率、首局进入速度、平均游玩时长和 D1 留存。
+- **SDK 接入范围**：当前只接入 HTML5 SDK v3 的基础能力：`init()`、`game.loadingStart/loadingStop`、`game.gameplayStart/gameplayStop`、`game.settings.muteAudio`。所有调用统一封装在 `src/platform/crazygames/crazygamesSdk.ts`，业务层禁止直接散落访问 `window.CrazyGames.SDK`。
+- **环境保护**：SDK adapter 只在 `local / crazygames` 环境调用真实 SDK；`disabled` 或脚本缺失时静默降级，不阻断 Web/Vercel/本地非 CrazyGames 预览。
+- **Gameplay 打点口径**：进入实际局内且没有结算遮罩时触发 `gameplayStart()`；回大厅、局内结算/教学完成遮罩、组件卸载时触发 `gameplayStop()`。adapter 内部用 `gameplayActive` 去重，避免 React StrictMode 或重复 render 造成重复事件。
+- **平台静音**：监听 `game.settings.muteAudio` 并同步到 `audioManager.setPlatformMuted()`；平台要求静音时 BGM 和 SFX 均降到 0，且 SFX 播放入口直接短路。
+- **排行榜结论**：CrazyGames SDK v3 没有官方 leaderboard 模块；`showInviteButton()` 是多人邀请入口，不是排行榜。Basic Launch 阶段前台榜单收口为“本地周纪录”，不再展示机器人假榜或暗示全球榜。真实全球榜需要后端服务：客户端取 `user.getUserToken()`，后端验 CrazyGames JWT 后写入/查询周榜。
+- **后续 Full Launch 预留**：若进入 Full Launch，优先评估 `Data` module 替换 CrazyGames 环境下的本地进度存档；若开放真实排行榜，则新增后端 `POST /leaderboard/weekly/submit` 与 `GET /leaderboard/weekly`，客户端只提交分数和 token，不信任前端传入的 userId。
+
+> 请 `@主策划 樊老师` 同步更新 `Doc/GameDesign/`：当前 Basic Launch 版本只有本地周纪录，不是全球排行榜；广告商业化与真实全球榜均属于 Full Launch/服务端接入后的后续事项。
+
 ---
 
-**最后更新**: 2026-03-22  
-**当前状态**: 主菜单设置支持语言切换与调试关卡入口，运行进度与调试入口已隔离
+**最后更新**: 2026-04-26  
+**当前状态**: CrazyGames Basic Launch 基础 SDK 已接入，排行榜前台收口为本地周纪录

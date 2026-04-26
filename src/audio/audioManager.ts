@@ -34,6 +34,7 @@ class AudioManager {
   private currentScene: AudioScene = 'menu'
   private melodyActive = false
   private visibilityHidden = false
+  private platformMuted = false
   private menuSource: AudioBufferSourceNode | null = null
   private gameBaseSource: AudioBufferSourceNode | null = null
   private gameMelodySource: AudioBufferSourceNode | null = null
@@ -231,12 +232,15 @@ class AudioManager {
   }
 
   private syncSceneGains() {
-    if (!this.unlocked || this.visibilityHidden) {
+    if (!this.unlocked || this.visibilityHidden || this.platformMuted) {
       this.ramp(this.menuGain, 0, 0.08)
       this.ramp(this.gameBaseGain, 0, 0.08)
       this.ramp(this.gameMelodyGain, 0, 0.08)
+      this.ramp(this.sfxGain, 0, 0.08)
       return
     }
+
+    this.ramp(this.sfxGain, 0.84, 0.08)
 
     if (this.currentScene === 'menu') {
       this.ramp(this.menuGain, 0.2, 0.25)
@@ -324,6 +328,11 @@ class AudioManager {
     this.syncSceneGains()
   }
 
+  setPlatformMuted(muted: boolean) {
+    this.platformMuted = muted
+    this.syncSceneGains()
+  }
+
   duckMusic(amount = 0.65, durationSeconds = 0.5) {
     if (!this.musicGain || !this.context) {
       return
@@ -340,7 +349,7 @@ class AudioManager {
 
   async playSprite(name: string, options: PlaySpriteOptions = {}) {
     const context = this.context
-    if (!context || !this.unlocked || !this.sfxGain) {
+    if (!context || !this.unlocked || this.platformMuted || !this.sfxGain) {
       return
     }
 

@@ -31,6 +31,7 @@ import { HUD } from '../ui/HUD'
 import { MainMenu } from '../ui/MainMenu'
 import { SliceControls } from '../ui/SliceControls'
 import { GameCanvas } from './GameCanvas'
+import { crazygamesSdk } from '../platform/crazygames/crazygamesSdk'
 
 type SessionOverlayState = 'victory' | 'game_over' | 'tutorial_complete' | null
 
@@ -280,6 +281,19 @@ function LevelSessionShell({
       maxMergeLevel: highestMergeLevelRef.current
     })
   }, [isEndlessSession, onCompleteEndlessRun, snapshot.overlay, snapshot.score])
+
+  React.useEffect(() => {
+    if (sessionOverlay) {
+      void crazygamesSdk.gameplayStop()
+      return
+    }
+
+    void crazygamesSdk.gameplayStart()
+
+    return () => {
+      void crazygamesSdk.gameplayStop()
+    }
+  }, [sessionOverlay])
 
   React.useEffect(() => () => {
     clearTutorialAdvanceTimer()
@@ -547,6 +561,28 @@ function CampaignRoot() {
       score: GRID_UNLOCK_THRESHOLDS[nextGridSize]
     }
   }, [currentArenaGridSize])
+
+  React.useEffect(() => {
+    let cleanup: (() => void) | undefined
+    let disposed = false
+
+    void crazygamesSdk.syncSettings((settings) => {
+      audioManager.setPlatformMuted(settings.muteAudio === true)
+    }).then((nextCleanup) => {
+      if (disposed) {
+        nextCleanup()
+        return
+      }
+
+      cleanup = nextCleanup
+    })
+
+    return () => {
+      disposed = true
+      cleanup?.()
+      audioManager.setPlatformMuted(false)
+    }
+  }, [])
 
   React.useEffect(() => {
     writeStoredProgress(progress)

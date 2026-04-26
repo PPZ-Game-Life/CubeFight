@@ -235,16 +235,20 @@ export function MainMenu({
             <section className="main-menu__settings-section">
               <div className="main-menu__settings-label">{t.menu.weeklyLadder}</div>
               <div className="main-menu__settings-hint">{t.menu.weeklyLadderHint}</div>
-              <div style={{ marginTop: 16, display: 'grid', gap: 8 }}>
-                {leaderboardEntries.slice(0, 8).map((entry) => (
+              {leaderboardEntries.length > 0 ? (
+                <div style={{ marginTop: 16, display: 'grid', gap: 8 }}>
+                  {leaderboardEntries.slice(0, 8).map((entry) => (
                   <div key={`${entry.playerId}-${entry.rank}`} data-testid={`leaderboard-entry-${entry.rank}`} style={{ display: 'grid', gridTemplateColumns: '56px minmax(0, 1fr) 120px 92px', alignItems: 'center', gap: 12, borderRadius: 16, padding: '12px 14px', border: entry.isCurrentPlayer ? '1px solid rgba(255,204,85,0.42)' : '1px solid rgba(255,255,255,0.08)', background: entry.isCurrentPlayer ? 'rgba(255,204,85,0.12)' : 'rgba(255,255,255,0.04)' }}>
                     <div style={{ fontSize: 12, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(244,241,234,0.62)' }}>#{entry.rank}</div>
                     <div style={{ minWidth: 0, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis' }}>{entry.playerId}</div>
                     <div style={{ fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>{entry.score}</div>
                     <div style={{ fontSize: 12, color: 'rgba(244,241,234,0.74)', textAlign: 'right' }}>Lv.{entry.maxMergeLevel}</div>
                   </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div data-testid="leaderboard-empty" style={{ marginTop: 16, borderRadius: 16, padding: '14px 16px', border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', color: 'rgba(244,241,234,0.76)' }}>{t.menu.noLocalRecord}</div>
+              )}
             </section>
 
             {playerLeaderboardEntry ? (

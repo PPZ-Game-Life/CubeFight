@@ -251,7 +251,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  padding-top: min(18vh, 144px);
+  padding-top: min(8vh, 72px);
   gap: 14px;
 }
 
@@ -1005,7 +1005,7 @@
   }
 
   .main-menu__centerpiece {
-    padding-top: min(24vh, 156px);
+    padding-top: min(10vh, 76px);
     gap: 14px;
   }
 
@@ -1069,6 +1069,6 @@
   }
 
   .main-menu__centerpiece {
-    padding-top: min(20vh, 144px);
+    padding-top: min(8vh, 56px);
   }
 }

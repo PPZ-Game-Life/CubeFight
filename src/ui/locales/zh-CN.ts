@@ -16,7 +16,7 @@ export default {
     startGame: '开始游戏',
     currentLevel: (levelLabel: string) => `当前：${levelLabel}`,
     endlessMode: '无尽模式',
-    endlessHint: (gridSize: number) => `当前战场 ${gridSize}×${gridSize}×${gridSize}，排行榜记录单局最高积分`,
+    endlessHint: (gridSize: number) => `当前战场 ${gridSize}×${gridSize}×${gridSize}，本地纪录记录单局最高积分`,
     startGameHint: (currentGridSize: number, nextGridSize: number, score: number) => `当前 ${currentGridSize}×${currentGridSize}×${currentGridSize} · ${score} 分解锁 ${nextGridSize}×${nextGridSize}×${nextGridSize}`,
     startGameHintMax: (currentGridSize: number) => `当前 ${currentGridSize}×${currentGridSize}×${currentGridSize} · 已解锁全部战场`,
     debugStartHint: (gridSize: number) => `调试开局 ${gridSize}×${gridSize}×${gridSize} · 已开启帧率显示`,
@@ -30,11 +30,12 @@ export default {
     unlockHint: '完成教学后解锁',
     skinShop: '皮肤商店',
     skinTeaser: '新皮肤',
-    leaderboard: '排行榜',
-    leaderboardHint: '记录无尽模式的最高积分',
-    weeklyLadder: '无尽之王 · 周榜',
-    weeklyLadderHint: '展示本周单局最高积分与最高合成等级徽章',
-    yourRank: '你的排名',
+    leaderboard: '本地周纪录',
+    leaderboardHint: '记录本机无尽模式最高积分',
+    weeklyLadder: '本地本周最佳',
+    weeklyLadderHint: 'Basic Launch 临时方案：仅展示本地周纪录。全球榜将在服务端接入后开放。',
+    yourRank: '你的纪录',
+    noLocalRecord: '本周还没有本地纪录。完成一局无尽模式后会生成纪录。',
     debugMode: '调试模式',
     debugModeHint: '仅在非发布版本中显示。开启后显示帧率，并可直接切换 3×3×3 / 4×4×4 / 5×5×5 棋盘。',
     debugGridSize: '方块数量',
@@ -48,7 +49,7 @@ export default {
       en: 'English'
     },
     closeSettings: '关闭设置',
-    closeLeaderboard: '关闭榜单'
+    closeLeaderboard: '关闭纪录'
   },
   hud: {
     lobby: '大厅',
