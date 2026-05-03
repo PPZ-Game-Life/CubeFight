@@ -2,6 +2,8 @@ import React from 'react'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { audioManager } from '../audio/audioManager'
+
 vi.mock('./GameCanvas', () => ({
   GameCanvas: ({ interactive = true }: { interactive?: boolean }) => <div data-interactive={interactive ? 'true' : 'false'} data-testid="game-canvas" />
 }))
@@ -10,6 +12,7 @@ import { App } from './App'
 
 describe('App main menu flow', () => {
   afterEach(() => {
+    audioManager.setUserVolume(0.78)
     window.localStorage.clear()
     vi.unstubAllGlobals()
   })
@@ -65,6 +68,27 @@ describe('App main menu flow', () => {
 
     expect(screen.getByRole('button', { name: '继续' })).toBeInTheDocument()
     expect(screen.getByText(/蓝块是你控制的方块/i)).toBeInTheDocument()
+  })
+
+  it('opens game rules and updates volume from settings', () => {
+    vi.stubGlobal('navigator', { language: 'en' })
+
+    render(<App />)
+
+    fireEvent.click(screen.getByTestId('main-menu-settings'))
+
+    expect(screen.getByTestId('main-menu-game-rules')).toHaveTextContent('Game Rules')
+    expect(screen.getByTestId('main-menu-volume-slider')).toHaveValue('78')
+
+    fireEvent.change(screen.getByTestId('main-menu-volume-slider'), { target: { value: '42' } })
+
+    expect(audioManager.getUserVolume()).toBe(0.42)
+    expect(screen.getByText('42%')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('main-menu-game-rules'))
+
+    expect(screen.getByTestId('main-menu-rules-dialog')).toHaveTextContent('Blue cubes')
+    expect(screen.getByTestId('main-menu-rules-dialog')).toHaveTextContent('Endless')
   })
 
   it('shows endless as the only public main menu entry after tutorial completion', () => {

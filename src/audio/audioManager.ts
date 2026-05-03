@@ -17,6 +17,15 @@ type PlaySpriteOptions = {
 }
 
 const USER_AUDIO_MUTED_STORAGE_KEY = 'cubefight.audio-muted'
+const USER_AUDIO_VOLUME_STORAGE_KEY = 'cubefight.audio-volume'
+
+function clampVolume(value: number) {
+  if (Number.isNaN(value)) {
+    return 0.78
+  }
+
+  return Math.min(1, Math.max(0, value))
+}
 
 function readStoredUserMuted() {
   if (typeof window === 'undefined') {
@@ -24,6 +33,19 @@ function readStoredUserMuted() {
   }
 
   return window.localStorage.getItem(USER_AUDIO_MUTED_STORAGE_KEY) === 'true'
+}
+
+function readStoredUserVolume() {
+  if (typeof window === 'undefined') {
+    return 0.78
+  }
+
+  const storedVolume = window.localStorage.getItem(USER_AUDIO_VOLUME_STORAGE_KEY)
+  if (storedVolume === null) {
+    return 0.78
+  }
+
+  return clampVolume(Number(storedVolume))
 }
 
 declare global {
@@ -46,6 +68,7 @@ class AudioManager {
   private visibilityHidden = false
   private platformMuted = false
   private userMuted = readStoredUserMuted()
+  private userVolume = readStoredUserVolume()
   private menuSource: AudioBufferSourceNode | null = null
   private gameBaseSource: AudioBufferSourceNode | null = null
   private gameMelodySource: AudioBufferSourceNode | null = null
@@ -78,7 +101,7 @@ class AudioManager {
     this.gameBaseGain = this.context.createGain()
     this.gameMelodyGain = this.context.createGain()
 
-    this.masterGain.gain.value = 0.78
+    this.masterGain.gain.value = this.userVolume
     this.musicGain.gain.value = 0.6
     this.sfxGain.gain.value = 0.76
     this.menuGain.gain.value = 0
@@ -348,11 +371,29 @@ class AudioManager {
     return this.userMuted
   }
 
+  getUserVolume() {
+    return this.userVolume
+  }
+
   setUserMuted(muted: boolean) {
     this.userMuted = muted
 
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(USER_AUDIO_MUTED_STORAGE_KEY, muted ? 'true' : 'false')
+    }
+
+    this.syncSceneGains()
+  }
+
+  setUserVolume(volume: number) {
+    this.userVolume = clampVolume(volume)
+
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(USER_AUDIO_VOLUME_STORAGE_KEY, String(this.userVolume))
+    }
+
+    if (this.masterGain) {
+      this.masterGain.gain.value = this.userVolume
     }
 
     this.syncSceneGains()

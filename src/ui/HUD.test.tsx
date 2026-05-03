@@ -55,6 +55,7 @@ function renderWithGameProviders(options: {
 
 afterEach(() => {
   audioManager.setUserMuted(false)
+  audioManager.setUserVolume(0.78)
   window.localStorage.clear()
   vi.unstubAllGlobals()
 })
@@ -164,6 +165,7 @@ describe('HUD', () => {
     expect(screen.queryByTestId('hud-fps-panel')).not.toBeInTheDocument()
     expect(screen.getByTestId('hud-lobby-button')).toBeInTheDocument()
     expect(screen.getByTestId('hud-audio-toggle')).toBeInTheDocument()
+    expect(screen.getByTestId('hud-rules-button')).toBeInTheDocument()
     expect(screen.queryByTestId('hud-bomb-dock')).not.toBeInTheDocument()
     expect(screen.getByTestId('hud-bottom-row')).toBeInTheDocument()
     expect(screen.queryByLabelText('Hammer')).not.toBeInTheDocument()
@@ -322,6 +324,19 @@ describe('HUD', () => {
 
     expect(audioManager.isUserMuted()).toBe(false)
     expect(audioButton).toHaveAccessibleName('Mute audio')
+  })
+
+  it('opens game rules from the bottom-corner control', () => {
+    renderWithGameProviders()
+
+    const rulesButton = screen.getByTestId('hud-rules-button')
+
+    expect(rulesButton).toHaveAccessibleName('Game Rules')
+
+    fireEvent.click(rulesButton)
+
+    expect(screen.getByTestId('hud-rules-dialog')).toHaveTextContent('Blue cubes')
+    expect(screen.getByTestId('hud-rules-dialog')).toHaveTextContent('Endless')
   })
 
   it('shows a crisis vignette when the board occupancy gets high', () => {

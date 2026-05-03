@@ -4,6 +4,7 @@ import { audioManager } from '../audio/audioManager'
 import type { Locale } from '../game/model/types'
 import type { EndlessGridSize, LeaderboardEntry } from '../app/endlessProgress'
 import { useLocale } from './LocaleProvider'
+import { GameRulesDialog } from './GameRulesDialog'
 
 type MainMenuProps = {
   currentArenaGridSize: EndlessGridSize
@@ -47,6 +48,12 @@ export function MainMenu({
   const { t } = useLocale()
   const [settingsOpen, setSettingsOpen] = React.useState(false)
   const [leaderboardOpen, setLeaderboardOpen] = React.useState(false)
+  const [rulesOpen, setRulesOpen] = React.useState(false)
+  const [audioVolume, setAudioVolume] = React.useState(() => audioManager.getUserVolume())
+
+  React.useEffect(() => {
+    setAudioVolume(audioManager.getUserVolume())
+  }, [])
 
   return (
     <div className="main-menu" data-testid="main-menu">
@@ -133,10 +140,43 @@ export function MainMenu({
               <button className="main-menu__settings-close" type="button" onClick={() => {
                 void audioManager.playUiConfirm()
                 setSettingsOpen(false)
+                setRulesOpen(false)
               }}>
                 {t.menu.closeSettings}
               </button>
             </div>
+
+            <section className="main-menu__settings-section">
+              <button className="main-menu__action main-menu__action--secondary main-menu__settings-rule-button" data-testid="main-menu-game-rules" type="button" onClick={() => {
+                void audioManager.playUiConfirm()
+                setRulesOpen(true)
+              }}>
+                <span className="main-menu__action-title">{t.menu.gameRules}</span>
+                <span className="main-menu__action-subtitle">{t.menu.gameRulesHint}</span>
+              </button>
+            </section>
+
+            <section className="main-menu__settings-section">
+              <div className="main-menu__settings-label">{t.menu.volume}</div>
+              <div className="main-menu__settings-hint">{t.menu.volumeHint}</div>
+              <div className="main-menu__volume-row">
+                <input
+                  aria-label={t.menu.volume}
+                  className="main-menu__volume-slider"
+                  data-testid="main-menu-volume-slider"
+                  max={100}
+                  min={0}
+                  type="range"
+                  value={Math.round(audioVolume * 100)}
+                  onChange={(event) => {
+                    const nextVolume = Number(event.currentTarget.value) / 100
+                    audioManager.setUserVolume(nextVolume)
+                    setAudioVolume(nextVolume)
+                  }}
+                />
+                <div className="main-menu__volume-value">{t.menu.volumeLevel(Math.round(audioVolume * 100))}</div>
+              </div>
+            </section>
 
             <section className="main-menu__settings-section">
               <div className="main-menu__settings-label">{t.menu.language}</div>
@@ -215,6 +255,8 @@ export function MainMenu({
           </div>
         </div>
       ) : null}
+
+      {rulesOpen ? <GameRulesDialog onClose={() => setRulesOpen(false)} testId="main-menu-rules-dialog" /> : null}
 
       {leaderboardOpen ? (
         <div aria-modal="true" className="main-menu__settings-overlay" role="dialog" data-testid="main-menu-leaderboard-dialog">

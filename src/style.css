@@ -495,6 +495,8 @@
 
 .main-menu__settings-card {
   width: min(460px, calc(100vw - 40px));
+  max-height: calc(100vh - 40px);
+  overflow: auto;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 28px;
   background:
@@ -503,6 +505,10 @@
   box-shadow: 0 20px 48px rgba(3, 8, 14, 0.34);
   backdrop-filter: blur(18px) saturate(140%);
   padding: 22px;
+}
+
+.main-menu__rules-card {
+  width: min(560px, calc(100vw - 40px));
 }
 
 .main-menu__settings-header {
@@ -612,6 +618,61 @@
   min-height: 48px;
   margin-top: 12px;
   padding: 0 12px;
+}
+
+.main-menu__settings-rule-button {
+  min-height: 64px;
+  padding: 14px 18px;
+  text-align: left;
+}
+
+.main-menu__settings-rule-button .main-menu__action-title {
+  font-size: 18px;
+}
+
+.main-menu__volume-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 56px;
+  align-items: center;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.main-menu__volume-slider {
+  width: 100%;
+  accent-color: #ffbf5a;
+}
+
+.main-menu__volume-value {
+  font-size: 13px;
+  font-weight: 800;
+  color: #fff4d7;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.main-menu__rules-list {
+  display: grid;
+  gap: 12px;
+  margin: 16px 0 0;
+  padding-left: 22px;
+}
+
+.main-menu__rules-item {
+  color: rgba(233, 241, 247, 0.76);
+  line-height: 1.5;
+}
+
+.main-menu__rules-item strong {
+  display: block;
+  color: #f6f8fb;
+  font-size: 14px;
+}
+
+.main-menu__rules-item span {
+  display: block;
+  margin-top: 2px;
+  font-size: 13px;
 }
 
 @keyframes main-menu-breathe {

@@ -43,6 +43,11 @@ export default {
     settings: 'Settings',
     help: 'Help',
     settingsTitle: 'Settings',
+    gameRules: 'Game Rules',
+    gameRulesHint: 'Review merge, devour, and Endless survival rules.',
+    volume: 'Volume',
+    volumeHint: 'Controls both BGM and SFX. Platform mute still has highest priority.',
+    volumeLevel: (value: number) => `${value}%`,
     language: 'Language',
     languageOptions: {
       'zh-CN': '简体中文',
@@ -51,8 +56,22 @@ export default {
     closeSettings: 'Close Settings',
     closeLeaderboard: 'Close Records'
   },
+  sharedRules: {
+    title: 'Game Rules',
+    close: 'Close Rules',
+    intro: 'Win by reading the cube colors, building stronger blue cubes, and keeping the board from locking up.',
+    items: [
+      { title: 'Blue cubes', body: 'Your controllable pieces. Select a blue cube, then choose a legal adjacent target.' },
+      { title: 'Merge', body: 'Same color and same level cubes merge into one higher-level cube.' },
+      { title: 'Devour', body: 'Blue cubes can devour adjacent red or yellow cubes whose level is not higher than the blue cube.' },
+      { title: 'Yellow cubes', body: 'Devouring yellow cubes gives score and keeps combo momentum alive.' },
+      { title: 'Red cubes', body: 'Red cubes are blockers. Clear them before the board has no legal move left.' },
+      { title: 'Endless', body: 'After each successful action, new cubes refill empty cells. Survive longer and chase a higher score.' }
+    ]
+  },
   hud: {
     lobby: 'Lobby',
+    gameRules: 'Game Rules',
     audioToggleOn: 'Unmute audio',
     audioToggleOff: 'Mute audio',
     fps: 'FPS',

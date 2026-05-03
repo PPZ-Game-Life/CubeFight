@@ -43,6 +43,11 @@ export default {
     settings: '设置',
     help: '玩法说明',
     settingsTitle: '设置',
+    gameRules: '游戏规则',
+    gameRulesHint: '查看合成、吞噬与无尽模式规则。',
+    volume: '音量大小',
+    volumeHint: '同时控制背景音乐和音效；平台静音优先级最高。',
+    volumeLevel: (value: number) => `${value}%`,
     language: '语言',
     languageOptions: {
       'zh-CN': '简体中文',
@@ -51,8 +56,22 @@ export default {
     closeSettings: '关闭设置',
     closeLeaderboard: '关闭纪录'
   },
+  sharedRules: {
+    title: '游戏规则',
+    close: '关闭规则',
+    intro: '看清颜色和等级，做出合成或吞噬，让蓝块不断变强，同时避免棋盘被卡死。',
+    items: [
+      { title: '蓝块', body: '你的可操作方块。先选中蓝块，再选择合法的相邻目标。' },
+      { title: '合成', body: '相同颜色、相同等级的方块会合成成更高一级。' },
+      { title: '吞噬', body: '蓝块可以吞噬相邻的红块或黄块，只要自身等级不低于目标。' },
+      { title: '黄块', body: '吞噬黄块也会得分，并有助于维持连击。' },
+      { title: '红块', body: '红块是阻挡物。尽量在棋盘无路可走前清掉它们。' },
+      { title: '无尽模式', body: '每次成功行动后，空格会自动补位。坚持更久，冲更高分。' }
+    ]
+  },
   hud: {
     lobby: '大厅',
+    gameRules: '游戏规则',
     audioToggleOn: '开启音效',
     audioToggleOff: '关闭音效',
     fps: '帧率',

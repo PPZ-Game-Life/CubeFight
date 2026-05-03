@@ -3,6 +3,7 @@ import React from 'react'
 import { audioManager } from '../audio/audioManager'
 import type { ComboTextKey } from '../game/model/types'
 import { useGameStore } from '../game/state/gameStore'
+import { GameRulesDialog } from './GameRulesDialog'
 import { useLocale } from './LocaleProvider'
 
 type LevelHudObjective = {
@@ -385,6 +386,7 @@ export function HUD({
   const { t } = useLocale()
   const fps = useFpsCounter()
   const [audioMuted, setAudioMuted] = React.useState(() => audioManager.isUserMuted())
+  const [rulesOpen, setRulesOpen] = React.useState(false)
   const {
     cubes,
     comboCount,
@@ -466,11 +468,19 @@ export function HUD({
           }}>
             <span aria-hidden="true" style={{ fontSize: 20, lineHeight: 1 }}>{audioMuted ? '🔇' : '🔊'}</span>
           </button>
+
+          <button aria-label={t.hud.gameRules} className="hud__rules-button" data-testid="hud-rules-button" style={utilityButtonStyle} type="button" onClick={() => {
+            void audioManager.playUiConfirm()
+            setRulesOpen(true)
+          }}>
+            <span aria-hidden="true" style={{ fontSize: 22, lineHeight: 1 }}>?</span>
+          </button>
         </div>
 
       </div>
 
       <GameOverlay overlay={effectiveOverlay} restartDemo={restartDemo} restartLabel={t.hud.restart} title={overlayTitle} />
+      {rulesOpen ? <GameRulesDialog onClose={() => setRulesOpen(false)} testId="hud-rules-dialog" /> : null}
     </div>
   )
 }

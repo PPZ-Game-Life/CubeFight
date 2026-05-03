@@ -70,3 +70,9 @@
 - 状态由 `audioManager.setUserMuted()` 管理，并持久化到 `localStorage: cubefight.audio-muted`。
 - 用户静音与 CrazyGames 平台静音分层：平台静音 `platformMuted` 仍保持最高优先级；用户静音 `userMuted` 只代表玩家主动开关。
 - 关闭音频时，BGM gain 与 SFX gain 均淡出到 0，且 `playSprite()` 直接短路，避免静音状态下继续创建短音源。
+
+## 9. 2026-05-03 设置音量滑杆
+
+- 设置弹窗新增音量大小滑杆，统一控制 BGM 与 SFX 的 `masterGain`，取值范围 `0-100%`。
+- 状态由 `audioManager.setUserVolume()` 管理，并持久化到 `localStorage: cubefight.audio-volume`；默认值保持当前混音响度 `78%`，避免上线音量突变。
+- 音量大小与用户静音、CrazyGames 平台静音分层：音量滑杆只控制总体响度，用户静音仍通过 `cubefight.audio-muted` 短路 SFX，平台静音仍最高优先级。
