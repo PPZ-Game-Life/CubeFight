@@ -784,7 +784,7 @@
 
 .slice-controls__panel--column {
   position: absolute;
-  bottom: 118px;
+  bottom: 78px;
   left: 50%;
   width: min(320px, calc(100vw - 136px));
   padding: 10px 12px;
@@ -892,7 +892,7 @@
   }
 
   .slice-controls__panel--column {
-    bottom: 108px;
+    bottom: 88px;
     width: min(300px, calc(100vw - 116px));
   }
 }

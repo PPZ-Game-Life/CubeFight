@@ -38,19 +38,20 @@ function getDisplayOffset(cubes: ReturnType<typeof useGameStore>['visibleCubes']
 export function GameCanvas({ interactive = true, allowedCubeIds = null, tutorialMarkerCubeIds = [], centerVisibleCubes = false }: { interactive?: boolean; allowedCubeIds?: string[] | null; tutorialMarkerCubeIds?: string[]; centerVisibleCubes?: boolean }) {
   const { clearSelection, gridSize, visibleCubes } = useGameStore()
   const displayOffset = React.useMemo(() => (centerVisibleCubes ? getDisplayOffset(visibleCubes, gridSize) : [0, 0, 0] as [number, number, number]), [centerVisibleCubes, gridSize, visibleCubes])
-  const isCoarsePointer = React.useMemo(() => {
+  const isMobileRuntime = React.useMemo(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
       return false
     }
 
-    return window.matchMedia('(pointer: coarse)').matches
+    return window.matchMedia('(pointer: coarse)').matches && window.matchMedia('(max-width: 900px)').matches
   }, [])
-  const dpr = React.useMemo<[number, number]>(() => (isCoarsePointer ? [1, 1.25] : [1, 1.75]), [isCoarsePointer])
+  const dpr = React.useMemo<[number, number]>(() => (isMobileRuntime ? [0.75, 1] : [1, 1.75]), [isMobileRuntime])
 
   return (
     <Canvas
       dpr={dpr}
-      gl={{ antialias: false, powerPreference: 'high-performance' }}
+      gl={{ alpha: false, antialias: false, depth: true, powerPreference: 'high-performance', stencil: false }}
+      performance={{ min: 0.55 }}
       style={{ background: '#1a1a2e' }}
       onPointerMissed={() => {
         if (interactive) {
@@ -62,10 +63,10 @@ export function GameCanvas({ interactive = true, allowedCubeIds = null, tutorial
       <CameraRig />
       <Lights />
       <group position={displayOffset}>
-        <GridRoot allowedCubeIds={allowedCubeIds} cubes={visibleCubes} gridSize={gridSize} interactive={interactive} reducedQuality={isCoarsePointer} />
+        <GridRoot allowedCubeIds={allowedCubeIds} cubes={visibleCubes} gridSize={gridSize} interactive={interactive} reducedQuality={isMobileRuntime} />
         {tutorialMarkerCubeIds.length > 0 ? <TutorialMarkers cubeIds={tutorialMarkerCubeIds} /> : null}
       </group>
-      <Effects reducedQuality={isCoarsePointer} />
+      <Effects reducedQuality={isMobileRuntime} />
     </Canvas>
   )
 }

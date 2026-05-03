@@ -24,8 +24,8 @@ function easeInOutCubic(t: number) {
     : 1 - Math.pow(-2 * t + 2, 3) / 2
 }
 
-function createShellGeometry() {
-  return new RoundedBoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE, 6, 0.17)
+function createShellGeometry(reducedQuality: boolean) {
+  return new RoundedBoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE, reducedQuality ? 3 : 6, reducedQuality ? 0.14 : 0.17)
 }
 
 function createRimMaterial(color: THREE.Color) {
@@ -125,6 +125,7 @@ const scratchToCamera = new THREE.Vector3()
 const scratchPlaneUp = new THREE.Vector3()
 const scratchPlaneRight = new THREE.Vector3()
 const scratchCorrectedUp = new THREE.Vector3()
+const scratchNormalProjection = new THREE.Vector3()
 const scratchRotationMatrix = new THREE.Matrix4()
 const scratchWorldPosition = new THREE.Vector3()
 
@@ -164,6 +165,7 @@ function CubeMeshInner({ cube, gridSize = 3, interactive = true, allowedCubeIds,
   const physicalMaterialRef = useRef<THREE.MeshPhysicalMaterial>(null)
   const labelRefs = useRef<Array<THREE.Mesh | null>>([])
   const clickFeedbackAtRef = useRef(0)
+  const labelFrameTickRef = useRef(0)
   const lastActivationAtRef = useRef(0)
   const lastMaterialDebugStateRef = useRef<'fallback' | 'glass' | null>(null)
   const position = useMemo(() => toWorldPosition(cube.x, cube.y, cube.z, gridSize), [cube.x, cube.y, cube.z, gridSize])
@@ -181,7 +183,7 @@ function CubeMeshInner({ cube, gridSize = 3, interactive = true, allowedCubeIds,
   const faction = factionVisuals(cube)
   const activeFaceConfigs = faceConfigs
   const labelTexture = useMemo(() => createLabelTexture(cube.level, visual.dimmed), [cube.level, visual.dimmed])
-  const shellGeometry = useMemo(() => createShellGeometry(), [])
+  const shellGeometry = useMemo(() => createShellGeometry(reducedQuality), [reducedQuality])
   const labelMaterial = useMemo(() => new THREE.MeshBasicMaterial({
     map: labelTexture,
     transparent: true,
@@ -330,45 +332,52 @@ function CubeMeshInner({ cube, gridSize = 3, interactive = true, allowedCubeIds,
       }
     }
 
-    camera.getWorldPosition(scratchCameraPosition)
-    group.getWorldQuaternion(scratchMeshWorldQuaternion)
-    scratchInverseQuaternion.copy(scratchMeshWorldQuaternion).invert()
-    scratchLocalCameraPosition.copy(scratchCameraPosition)
-    group.worldToLocal(scratchLocalCameraPosition)
-    camera.getWorldDirection(scratchCameraForward)
-    scratchLocalCameraForward.copy(scratchCameraForward).applyQuaternion(scratchInverseQuaternion).normalize()
-    scratchLocalCameraUp.copy(camera.up).applyQuaternion(scratchInverseQuaternion).normalize()
+    labelFrameTickRef.current += 1
+    const shouldUpdateLabels = !reducedQuality || labelFrameTickRef.current % 2 === 0
+    if (shouldUpdateLabels) {
+      camera.getWorldPosition(scratchCameraPosition)
+      group.getWorldQuaternion(scratchMeshWorldQuaternion)
+      scratchInverseQuaternion.copy(scratchMeshWorldQuaternion).invert()
+      scratchLocalCameraPosition.copy(scratchCameraPosition)
+      group.worldToLocal(scratchLocalCameraPosition)
+      camera.getWorldDirection(scratchCameraForward)
+      scratchLocalCameraForward.copy(scratchCameraForward).applyQuaternion(scratchInverseQuaternion).normalize()
+      scratchLocalCameraUp.copy(camera.up).applyQuaternion(scratchInverseQuaternion).normalize()
 
-    activeFaceConfigs.forEach((config, index) => {
-      const plane = labelRefs.current[index]
-      if (!plane) return
+      activeFaceConfigs.forEach((config, index) => {
+        const plane = labelRefs.current[index]
+        if (!plane) return
 
-      scratchPlanePosition.set(config.position[0], config.position[1], config.position[2])
-      scratchNormal.copy(config.normal)
-      scratchToCamera.copy(scratchLocalCameraPosition).sub(scratchPlanePosition).normalize()
-      const facing = scratchNormal.dot(scratchToCamera)
+        scratchPlanePosition.set(config.position[0], config.position[1], config.position[2])
+        scratchNormal.copy(config.normal)
+        scratchToCamera.copy(scratchLocalCameraPosition).sub(scratchPlanePosition).normalize()
+        const facing = scratchNormal.dot(scratchToCamera)
 
-      plane.visible = facing > 0.08 && !isMergeSource
-      if (!plane.visible) return
+        plane.visible = facing > 0.08 && !isMergeSource
+        if (!plane.visible) return
 
-      scratchPlaneUp.copy(scratchLocalCameraUp).sub(scratchNormal.clone().multiplyScalar(scratchLocalCameraUp.dot(scratchNormal)))
-      if (scratchPlaneUp.lengthSq() < 1e-4) {
-        scratchPlaneUp.copy(scratchLocalCameraForward).sub(scratchNormal.clone().multiplyScalar(scratchLocalCameraForward.dot(scratchNormal)))
-      }
-      if (scratchPlaneUp.lengthSq() < 1e-4) {
-        scratchPlaneUp.set(0, 1, 0).sub(scratchNormal.clone().multiplyScalar(scratchNormal.y))
-      }
-      scratchPlaneUp.normalize()
-      scratchPlaneRight.crossVectors(scratchPlaneUp, scratchNormal).normalize()
-      scratchCorrectedUp.crossVectors(scratchNormal, scratchPlaneRight).normalize()
-      scratchRotationMatrix.makeBasis(scratchPlaneRight, scratchCorrectedUp, scratchNormal)
-      plane.quaternion.setFromRotationMatrix(scratchRotationMatrix)
-    })
+        scratchNormalProjection.copy(scratchNormal).multiplyScalar(scratchLocalCameraUp.dot(scratchNormal))
+        scratchPlaneUp.copy(scratchLocalCameraUp).sub(scratchNormalProjection)
+        if (scratchPlaneUp.lengthSq() < 1e-4) {
+          scratchNormalProjection.copy(scratchNormal).multiplyScalar(scratchLocalCameraForward.dot(scratchNormal))
+          scratchPlaneUp.copy(scratchLocalCameraForward).sub(scratchNormalProjection)
+        }
+        if (scratchPlaneUp.lengthSq() < 1e-4) {
+          scratchNormalProjection.copy(scratchNormal).multiplyScalar(scratchNormal.y)
+          scratchPlaneUp.set(0, 1, 0).sub(scratchNormalProjection)
+        }
+        scratchPlaneUp.normalize()
+        scratchPlaneRight.crossVectors(scratchPlaneUp, scratchNormal).normalize()
+        scratchCorrectedUp.crossVectors(scratchNormal, scratchPlaneRight).normalize()
+        scratchRotationMatrix.makeBasis(scratchPlaneRight, scratchCorrectedUp, scratchNormal)
+        plane.quaternion.setFromRotationMatrix(scratchRotationMatrix)
+      })
 
-    for (let index = activeFaceConfigs.length; index < labelRefs.current.length; index += 1) {
-      const plane = labelRefs.current[index]
-      if (plane) {
-        plane.visible = false
+      for (let index = activeFaceConfigs.length; index < labelRefs.current.length; index += 1) {
+        const plane = labelRefs.current[index]
+        if (plane) {
+          plane.visible = false
+        }
       }
     }
   })
@@ -387,6 +396,7 @@ function CubeMeshInner({ cube, gridSize = 3, interactive = true, allowedCubeIds,
   const shellTransmission = cube.level <= 3 ? Math.max(0.48, faction.shellTransmission - 0.08) : cube.level <= 6 ? faction.shellTransmission : Math.min(0.82, faction.shellTransmission + 0.04)
   const shellOpacity = visual.selected ? 1 : visual.highlighted ? Math.min(1, faction.shellOpacity + 0.03) : faction.shellOpacity
   const showSelectionRing = visual.selected || visual.highlighted || clickFeedbackProgress > 0 || invalidFeedbackProgress > 0
+  const showRimShell = !reducedQuality || visual.selected || visual.highlighted || clickFeedbackProgress > 0 || isMergeSource || isMergeTarget
   const ringColor = invalidFeedbackProgress > 0 ? '#ff8d8d' : clickFeedbackProgress > 0 ? '#ffffff' : visual.selected ? '#ffffff' : faction.coreAccent
   const ringOpacity = invalidFeedbackProgress > 0 ? 0.9 : clickFeedbackProgress > 0 ? 0.96 : visual.selected ? 0.94 : 0.56
 
@@ -473,10 +483,12 @@ function CubeMeshInner({ cube, gridSize = 3, interactive = true, allowedCubeIds,
           />
         )}
       </mesh>
-      <mesh raycast={() => null} scale={1.012}>
-        <primitive attach="geometry" object={shellGeometry} />
-        <primitive attach="material" object={rimMaterial} />
-      </mesh>
+      {showRimShell ? (
+        <mesh raycast={() => null} scale={1.012}>
+          <primitive attach="geometry" object={shellGeometry} />
+          <primitive attach="material" object={rimMaterial} />
+        </mesh>
+      ) : null}
       {showSelectionRing ? (
         <mesh ref={ringRef} raycast={() => null} position={[0, -CUBE_SIZE * 0.54, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <torusGeometry args={[0.46, 0.028, 18, 48]} />

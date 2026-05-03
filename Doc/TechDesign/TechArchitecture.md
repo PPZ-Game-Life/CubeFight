@@ -843,6 +843,20 @@ CampaignRoot.onStart()
 - **音频资源**：`audioManager` 中 `public/audio/generated/*` 的加载路径从 `/audio/...` 改成 `audio/...`，保证 BGM/SFX 也跟随当前 `index.html` 相对路径加载。
 - **验证方式**：不要用 `file://dist/index.html` 验包；浏览器会拦截 ES Module。必须使用 `npm run preview` 或 CrazyGames Preview 这种 HTTP(S) 环境。
 
+### 11.40 纵切按钮下移（2026-05-03）
+- **问题背景**：CrazyGames Preview 右侧 QA 面板与底部平台栏会压缩可视高度，原来的横向切片按钮条偏靠上，视觉上贴近棋盘底部，影响点击舒适度。
+- **当前策略**：`slice-controls__panel--column` 默认下移到 `bottom: 78px`，中等宽度断点收敛到 `88px`，把按钮条往 HUD 底部按钮区方向靠拢，留出更自然的视觉缓冲。
+- **实现原则**：只调 UI 布局，不改切片逻辑、按钮文案或交互；移动端竖屏仍保留更高的安全间距，避免和底部拇指区冲突。
+
+### 11.41 安卓 Chrome 性能收口（2026-05-03）
+- **问题背景**：CrazyGames 手机 Preview 外层壳会额外叠加导航、检测脚本与广告区域，中低端安卓 Chrome 的 GPU fill-rate 和主线程预算明显低于桌面预览。
+- **移动端判定**：性能降级只在 `pointer: coarse` 且视口宽度 `<= 900px` 时启用，避免 PC、桌面预览或带触摸屏的大屏设备误进低画质档。
+- **DPR 策略**：移动端 `Canvas.dpr` 从 `1~1.25` 下调到 `0.75~1`，并开启 R3F `performance.min=0.55`，优先保稳定帧率而不是像素锐度；PC 仍保持 `1~1.75` 的高画质档。
+- **WebGL 上下文**：Canvas 显式关闭 alpha / stencil，保留 depth，减少不必要的混合与缓冲开销。
+- **方块渲染降级**：移动端 `CubeMesh` 使用更低段数的圆角盒；常态下不再渲染额外 Fresnel rim 外壳，只在选中、高亮、点击反馈或合并目标时显示，减少透明叠层 draw call。
+- **标签更新降频**：移动端六面数字仍保留，但朝向校正改为隔帧更新，并移除逐帧 `Vector3.clone()` 分配，降低主线程 GC 抖动。
+- **动作特效降级**：移动端跳过 `BoardActionEffects` 的落点环与吞噬残影，保留核心方块位移/缩放反馈，避免合并瞬间掉帧。
+
 ---
 
 **最后更新**: 2026-04-26  

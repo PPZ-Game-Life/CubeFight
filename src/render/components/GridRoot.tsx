@@ -6,7 +6,7 @@ import { CubeMesh } from './CubeMesh'
 export function GridRoot({ cubes, gridSize, interactive = true, allowedCubeIds, reducedQuality = false }: { cubes: CubeData[]; gridSize: number; interactive?: boolean; allowedCubeIds?: string[] | null; reducedQuality?: boolean }) {
   return (
     <group>
-      <BoardActionEffects />
+      {reducedQuality ? null : <BoardActionEffects />}
       {cubes.map((cube) => (
         <CubeMesh key={cube.id} allowedCubeIds={allowedCubeIds} cube={cube} gridSize={gridSize} interactive={interactive} reducedQuality={reducedQuality} />
       ))}
