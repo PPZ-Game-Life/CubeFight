@@ -78,7 +78,7 @@ export function MainMenu({
           </div>
 
           <div className="main-menu__logo-block">
-            <div className="main-menu__logo-kicker">AI Cube Arena</div>
+            <div className="main-menu__logo-kicker">Cube Arena</div>
             <h1 className="main-menu__logo" data-testid="main-menu-logo">{t.title}</h1>
           </div>
         </div>
