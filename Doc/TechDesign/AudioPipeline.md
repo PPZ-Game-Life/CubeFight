@@ -76,3 +76,10 @@
 - 设置弹窗新增音量大小滑杆，统一控制 BGM 与 SFX 的 `masterGain`，取值范围 `0-100%`。
 - 状态由 `audioManager.setUserVolume()` 管理，并持久化到 `localStorage: cubefight.audio-volume`；默认值保持当前混音响度 `78%`，避免上线音量突变。
 - 音量大小与用户静音、CrazyGames 平台静音分层：音量滑杆只控制总体响度，用户静音仍通过 `cubefight.audio-muted` 短路 SFX，平台静音仍最高优先级。
+
+## 10. 2026-05-03 大厅 BGM 偶发缺失修复
+
+- 问题来源：BGM buffer promise 曾经会把一次性 fetch/decode 失败永久缓存为 `null`，后续回到大厅或再次触发解锁时不会重试，表现为“大厅有时候没有 BGM”。
+- 当前策略：BGM 与 SFX 资源加载失败后清空对应 promise，下次 `setScene()` / `unlock()` / 播放入口会重新拉取资源。
+- 场景切换保护：`syncScenePlayback()` 增加序号防抖；异步加载完成后会复查当前 scene、解锁状态和可见性，避免菜单/局内快速切换时旧请求启动错误 BGM loop。
+- 可见性恢复：页面从后台回前台后重新走 `syncScenePlayback()`，不只恢复 gain，确保被浏览器挂起期间未成功创建的 BGM loop 能补建。

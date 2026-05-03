@@ -41,6 +41,16 @@ describe('App main menu flow', () => {
     expect(screen.getByRole('button', { name: 'Continue' })).toBeInTheDocument()
   })
 
+  it('defaults to English even when the browser language is Chinese', () => {
+    vi.stubGlobal('navigator', { language: 'zh-CN' })
+
+    render(<App />)
+
+    expect(screen.getByRole('button', { name: /Start Game/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Settings/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /开始游戏/i })).not.toBeInTheDocument()
+  })
+
   it('returns to the main menu when pressing the lobby button', () => {
     vi.stubGlobal('navigator', { language: 'en' })
 

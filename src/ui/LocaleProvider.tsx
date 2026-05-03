@@ -18,11 +18,6 @@ const LocaleContext = createContext<{
   t: Dictionary
 } | null>(null)
 
-function detectLocale(): Locale {
-  if (typeof navigator === 'undefined') return 'en'
-  return navigator.language.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en'
-}
-
 function readStoredLocale(): Locale | null {
   if (typeof window === 'undefined') {
     return null
@@ -37,7 +32,7 @@ function readStoredLocale(): Locale | null {
 }
 
 export function LocaleProvider({ children }: { children: React.ReactNode }) {
-  const [locale, setLocale] = useState<Locale>(() => readStoredLocale() ?? detectLocale())
+  const [locale, setLocale] = useState<Locale>(() => readStoredLocale() ?? 'en')
 
   useEffect(() => {
     if (typeof window === 'undefined') {

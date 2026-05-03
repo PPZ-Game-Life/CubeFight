@@ -40,6 +40,7 @@ function renderWithGameProviders(options: {
   const store = options.store ?? createGameStore({ config: options.config })
 
   vi.stubGlobal('navigator', { language: locale })
+  window.localStorage.setItem('cubefight.locale', locale)
 
   return {
     store,

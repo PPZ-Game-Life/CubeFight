@@ -825,6 +825,17 @@ CampaignRoot.onStart()
 - **音量大小**：设置弹窗新增 `0-100%` 音量滑杆，调用 `audioManager.setUserVolume()` 写入 `masterGain` 并持久化 `localStorage: cubefight.audio-volume`。默认值保持 `78%`，静音开关与 CrazyGames 平台静音仍是独立层级。
 - **实现原则**：规则查看属于 UI 帮助层，不改变任何合成、吞噬、无尽补位、计分或结算规则；无需同步策划数值，只需后续由 `@主策划 樊老师` 确认展示文案是否与策划说明一致。
 
+### 11.37 大厅 BGM 可靠性修复（2026-05-03）
+- **问题背景**：大厅 BGM 资源如果在首次 fetch/decode 时遇到瞬时失败，会把 `null` 缓存在 buffer promise 中，后续返回大厅也不再重试，导致偶发无 BGM。
+- **当前策略**：`audioManager` 对菜单 BGM、局内 BGM、SFX sprite 与 manifest 的失败加载都清空 promise，下次场景同步或播放入口自动重试。
+- **竞态保护**：`syncScenePlayback()` 新增递增序号，异步加载完成后只允许最新一次场景同步落地；`ensureMenuLoop()` / `ensureGameLoops()` 在创建 source 前复查当前 scene、解锁状态与页面可见性。
+- **后台恢复**：页面 visibility 从 hidden 恢复时重新执行 scene playback sync，确保浏览器挂起期间没建成功的 BGM loop 能补上。
+
+### 11.38 默认语言策略调整（2026-05-03）
+- **默认语言**：首次进入且没有 `localStorage: cubefight.locale` 时，`LocaleProvider` 固定使用英文 `en`，不再根据浏览器语言自动切到中文。
+- **用户选择保留**：玩家在设置页手动切换语言后，仍会写入 `cubefight.locale` 并在后续启动时优先使用该存档值。
+- **原因**：CrazyGames/海外发行默认入口需要英文，避免中文系统环境的审核机或用户首次打开时看到中文 UI。
+
 ---
 
 **最后更新**: 2026-04-26  

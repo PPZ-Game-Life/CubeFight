@@ -78,6 +78,7 @@ class AudioManager {
   private spriteBufferPromise: Promise<AudioBuffer | null> | null = null
   private spriteManifestPromise: Promise<SpriteManifest | null> | null = null
   private activeSpriteCounts = new Map<string, number>()
+  private playbackSyncId = 0
 
   private hasAudioContextSupport() {
     return typeof window !== 'undefined' && (typeof window.AudioContext !== 'undefined' || typeof window.webkitAudioContext !== 'undefined')
@@ -135,7 +136,18 @@ class AudioManager {
 
   private async loadMenuBuffer() {
     if (!this.menuBufferPromise) {
-      this.menuBufferPromise = this.decodeAsset('/audio/generated/main_menu_bgm.wav').catch(() => null)
+      this.menuBufferPromise = this.decodeAsset('/audio/generated/main_menu_bgm.wav')
+        .then((buffer) => {
+          if (!buffer) {
+            this.menuBufferPromise = null
+          }
+
+          return buffer
+        })
+        .catch(() => {
+          this.menuBufferPromise = null
+          return null
+        })
     }
 
     return this.menuBufferPromise
@@ -143,7 +155,18 @@ class AudioManager {
 
   private async loadGameBaseBuffer() {
     if (!this.gameBaseBufferPromise) {
-      this.gameBaseBufferPromise = this.decodeAsset('/audio/generated/ingame_bgm_base.wav').catch(() => null)
+      this.gameBaseBufferPromise = this.decodeAsset('/audio/generated/ingame_bgm_base.wav')
+        .then((buffer) => {
+          if (!buffer) {
+            this.gameBaseBufferPromise = null
+          }
+
+          return buffer
+        })
+        .catch(() => {
+          this.gameBaseBufferPromise = null
+          return null
+        })
     }
 
     return this.gameBaseBufferPromise
@@ -151,7 +174,18 @@ class AudioManager {
 
   private async loadGameMelodyBuffer() {
     if (!this.gameMelodyBufferPromise) {
-      this.gameMelodyBufferPromise = this.decodeAsset('/audio/generated/ingame_bgm_melody.wav').catch(() => null)
+      this.gameMelodyBufferPromise = this.decodeAsset('/audio/generated/ingame_bgm_melody.wav')
+        .then((buffer) => {
+          if (!buffer) {
+            this.gameMelodyBufferPromise = null
+          }
+
+          return buffer
+        })
+        .catch(() => {
+          this.gameMelodyBufferPromise = null
+          return null
+        })
     }
 
     return this.gameMelodyBufferPromise
@@ -159,7 +193,18 @@ class AudioManager {
 
   private async loadSpriteBuffer() {
     if (!this.spriteBufferPromise) {
-      this.spriteBufferPromise = this.decodeAsset('/audio/generated/sfx_sprite.wav').catch(() => null)
+      this.spriteBufferPromise = this.decodeAsset('/audio/generated/sfx_sprite.wav')
+        .then((buffer) => {
+          if (!buffer) {
+            this.spriteBufferPromise = null
+          }
+
+          return buffer
+        })
+        .catch(() => {
+          this.spriteBufferPromise = null
+          return null
+        })
     }
 
     return this.spriteBufferPromise
@@ -169,8 +214,17 @@ class AudioManager {
     if (!this.spriteManifestPromise) {
       this.spriteManifestPromise = fetch('/audio/generated/sfx_sprite.json')
         .then((response) => (response.ok ? response.json() : null))
-        .then((manifest) => manifest as SpriteManifest | null)
-        .catch(() => null)
+        .then((manifest) => {
+          if (!manifest) {
+            this.spriteManifestPromise = null
+          }
+
+          return manifest as SpriteManifest | null
+        })
+        .catch(() => {
+          this.spriteManifestPromise = null
+          return null
+        })
     }
 
     return this.spriteManifestPromise
@@ -195,7 +249,7 @@ class AudioManager {
     }
 
     const buffer = await this.loadMenuBuffer()
-    if (!buffer || this.menuSource) {
+    if (!buffer || this.menuSource || this.currentScene !== 'menu' || !this.unlocked || this.visibilityHidden) {
       return
     }
 
@@ -220,7 +274,7 @@ class AudioManager {
 
     if (!this.gameBaseSource) {
       const baseBuffer = await this.loadGameBaseBuffer()
-      if (baseBuffer && !this.gameBaseSource) {
+      if (baseBuffer && !this.gameBaseSource && this.currentScene === 'game' && this.unlocked && !this.visibilityHidden) {
         const source = context.createBufferSource()
         source.buffer = baseBuffer
         source.loop = true
@@ -237,7 +291,7 @@ class AudioManager {
 
     if (!this.gameMelodySource) {
       const melodyBuffer = await this.loadGameMelodyBuffer()
-      if (melodyBuffer && !this.gameMelodySource) {
+      if (melodyBuffer && !this.gameMelodySource && this.currentScene === 'game' && this.unlocked && !this.visibilityHidden) {
         const source = context.createBufferSource()
         source.buffer = melodyBuffer
         source.loop = true
@@ -289,6 +343,8 @@ class AudioManager {
   }
 
   private async syncScenePlayback() {
+    const syncId = ++this.playbackSyncId
+
     if (!this.unlocked || this.visibilityHidden) {
       this.syncSceneGains()
       return
@@ -298,6 +354,10 @@ class AudioManager {
       await this.ensureMenuLoop()
     } else {
       await this.ensureGameLoops()
+    }
+
+    if (syncId !== this.playbackSyncId) {
+      return
     }
 
     this.syncSceneGains()
@@ -359,12 +419,12 @@ class AudioManager {
       await this.context.resume().catch(() => undefined)
     }
 
-    this.syncSceneGains()
+    await this.syncScenePlayback()
   }
 
   setPlatformMuted(muted: boolean) {
     this.platformMuted = muted
-    this.syncSceneGains()
+    void this.syncScenePlayback()
   }
 
   isUserMuted() {
