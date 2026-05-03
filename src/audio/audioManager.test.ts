@@ -81,5 +81,6 @@ describe('audioManager', () => {
     await audioManager.setScene('menu')
 
     expect(fetch).toHaveBeenCalledTimes(2)
+    expect(fetch).toHaveBeenCalledWith('audio/generated/main_menu_bgm.wav')
   })
 })

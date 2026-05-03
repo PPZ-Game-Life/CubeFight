@@ -837,6 +837,12 @@ CampaignRoot.onStart()
 - **原因**：CrazyGames/海外发行默认入口需要英文，避免中文系统环境的审核机或用户首次打开时看到中文 UI。
 - **HTML 元信息**：`index.html` 的 `<html lang>` 与 `<title>` 也固定为英文，标题使用 `CubeFight - Cube Arena`；主菜单顶端小字也改为 `Cube Arena`，避免浏览器页签、分享卡片或平台抓取元信息继续显示中文或不必要的 AI 定位。
 
+### 11.39 CrazyGames 上传路径兼容（2026-05-03）
+- **问题背景**：CrazyGames Portal Preview 可能把上传包挂在非域名根路径下。如果 Vite 产物使用默认绝对路径 `/assets/...`，iframe 中会请求到站点根目录，导致 JS/CSS chunk 404 后黑屏。
+- **当前策略**：`vite.config.ts` 设置 `base: './'`，让构建后的 JS/CSS chunk 使用相对路径，适配 Portal Preview、Netlify 子路径和最终 CrazyGames 托管。
+- **音频资源**：`audioManager` 中 `public/audio/generated/*` 的加载路径从 `/audio/...` 改成 `audio/...`，保证 BGM/SFX 也跟随当前 `index.html` 相对路径加载。
+- **验证方式**：不要用 `file://dist/index.html` 验包；浏览器会拦截 ES Module。必须使用 `npm run preview` 或 CrazyGames Preview 这种 HTTP(S) 环境。
+
 ---
 
 **最后更新**: 2026-04-26  

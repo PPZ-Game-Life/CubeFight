@@ -136,7 +136,7 @@ class AudioManager {
 
   private async loadMenuBuffer() {
     if (!this.menuBufferPromise) {
-      this.menuBufferPromise = this.decodeAsset('/audio/generated/main_menu_bgm.wav')
+      this.menuBufferPromise = this.decodeAsset('audio/generated/main_menu_bgm.wav')
         .then((buffer) => {
           if (!buffer) {
             this.menuBufferPromise = null
@@ -155,7 +155,7 @@ class AudioManager {
 
   private async loadGameBaseBuffer() {
     if (!this.gameBaseBufferPromise) {
-      this.gameBaseBufferPromise = this.decodeAsset('/audio/generated/ingame_bgm_base.wav')
+      this.gameBaseBufferPromise = this.decodeAsset('audio/generated/ingame_bgm_base.wav')
         .then((buffer) => {
           if (!buffer) {
             this.gameBaseBufferPromise = null
@@ -174,7 +174,7 @@ class AudioManager {
 
   private async loadGameMelodyBuffer() {
     if (!this.gameMelodyBufferPromise) {
-      this.gameMelodyBufferPromise = this.decodeAsset('/audio/generated/ingame_bgm_melody.wav')
+      this.gameMelodyBufferPromise = this.decodeAsset('audio/generated/ingame_bgm_melody.wav')
         .then((buffer) => {
           if (!buffer) {
             this.gameMelodyBufferPromise = null
@@ -193,7 +193,7 @@ class AudioManager {
 
   private async loadSpriteBuffer() {
     if (!this.spriteBufferPromise) {
-      this.spriteBufferPromise = this.decodeAsset('/audio/generated/sfx_sprite.wav')
+      this.spriteBufferPromise = this.decodeAsset('audio/generated/sfx_sprite.wav')
         .then((buffer) => {
           if (!buffer) {
             this.spriteBufferPromise = null
@@ -212,7 +212,7 @@ class AudioManager {
 
   private async loadSpriteManifest() {
     if (!this.spriteManifestPromise) {
-      this.spriteManifestPromise = fetch('/audio/generated/sfx_sprite.json')
+      this.spriteManifestPromise = fetch('audio/generated/sfx_sprite.json')
         .then((response) => (response.ok ? response.json() : null))
         .then((manifest) => {
           if (!manifest) {
