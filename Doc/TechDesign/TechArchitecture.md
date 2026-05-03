@@ -835,6 +835,7 @@ CampaignRoot.onStart()
 - **默认语言**：首次进入且没有 `localStorage: cubefight.locale` 时，`LocaleProvider` 固定使用英文 `en`，不再根据浏览器语言自动切到中文。
 - **用户选择保留**：玩家在设置页手动切换语言后，仍会写入 `cubefight.locale` 并在后续启动时优先使用该存档值。
 - **原因**：CrazyGames/海外发行默认入口需要英文，避免中文系统环境的审核机或用户首次打开时看到中文 UI。
+- **HTML 元信息**：`index.html` 的 `<html lang>` 与 `<title>` 也固定为英文，避免浏览器页签、分享卡片或平台抓取元信息继续显示中文。
 
 ---
 
