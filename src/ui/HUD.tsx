@@ -25,7 +25,8 @@ const rootStyle: React.CSSProperties = {
   padding: 'var(--hud-padding, 16px)',
   pointerEvents: 'none',
   color: '#f4f1ea',
-  fontFamily: '"Avenir Next", "Segoe UI", sans-serif'
+  fontFamily: '"Avenir Next", "Segoe UI", sans-serif',
+  zIndex: 10
 }
 
 const statBarStyle: React.CSSProperties = {
@@ -43,6 +44,12 @@ const bottomRowStyle: React.CSSProperties = {
   justifyContent: 'space-between',
   alignItems: 'flex-end',
   gap: 'var(--hud-gap-lg, 16px)'
+}
+
+const bottomRowLeftStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'flex-end',
+  gap: 'var(--hud-gap-sm, 8px)'
 }
 
 const glassPanelStyle: React.CSSProperties = {
@@ -377,6 +384,7 @@ export function HUD({
 }) {
   const { t } = useLocale()
   const fps = useFpsCounter()
+  const [audioMuted, setAudioMuted] = React.useState(() => audioManager.isUserMuted())
   const {
     cubes,
     comboCount,
@@ -440,12 +448,25 @@ export function HUD({
       {showCrisisGlow ? <div className="hud__crisis-glow" data-testid="hud-crisis-glow" /> : null}
 
       <div className="hud__bottom-row" data-testid="hud-bottom-row" style={bottomRowStyle}>
-        <button aria-label={t.hud.lobby} className="hud__lobby-button" data-testid="hud-lobby-button" style={utilityButtonStyle} type="button" onClick={() => {
-          void audioManager.playUiConfirm()
-          onBackToLobby()
-        }}>
-          <span aria-hidden="true" style={{ fontSize: 22, lineHeight: 1 }}>⌂</span>
-        </button>
+        <div className="hud__bottom-row-left" style={bottomRowLeftStyle}>
+          <button aria-label={t.hud.lobby} className="hud__lobby-button" data-testid="hud-lobby-button" style={utilityButtonStyle} type="button" onClick={() => {
+            void audioManager.playUiConfirm()
+            onBackToLobby()
+          }}>
+            <span aria-hidden="true" style={{ fontSize: 22, lineHeight: 1 }}>⌂</span>
+          </button>
+
+          <button aria-label={audioMuted ? t.hud.audioToggleOn : t.hud.audioToggleOff} aria-pressed={!audioMuted} className="hud__audio-button" data-testid="hud-audio-toggle" style={utilityButtonStyle} type="button" onClick={() => {
+            const nextMuted = !audioMuted
+            audioManager.setUserMuted(nextMuted)
+            setAudioMuted(nextMuted)
+            if (!nextMuted) {
+              void audioManager.playUiConfirm()
+            }
+          }}>
+            <span aria-hidden="true" style={{ fontSize: 20, lineHeight: 1 }}>{audioMuted ? '🔇' : '🔊'}</span>
+          </button>
+        </div>
 
       </div>
 

@@ -100,11 +100,21 @@ export type MatchResult =
   | { kind: 'in_progress' }
 
 export interface MergeAnimationState {
+  kind: 'merge' | 'devour'
   sourceId: string
   targetId: string
+  sourcePosition: { x: number; y: number; z: number }
   targetPosition: { x: number; y: number; z: number }
   nextLevel: number
+  targetColor: CubeColor
+  targetVariant?: CubeData['variant']
   startTime: number
   duration: number
   sourceColor: CubeColor
+}
+
+export interface InvalidClickFeedbackState {
+  cubeId: string
+  startTime: number
+  duration: number
 }

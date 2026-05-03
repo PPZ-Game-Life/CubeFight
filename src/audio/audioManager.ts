@@ -16,6 +16,16 @@ type PlaySpriteOptions = {
   maxInstances?: number
 }
 
+const USER_AUDIO_MUTED_STORAGE_KEY = 'cubefight.audio-muted'
+
+function readStoredUserMuted() {
+  if (typeof window === 'undefined') {
+    return false
+  }
+
+  return window.localStorage.getItem(USER_AUDIO_MUTED_STORAGE_KEY) === 'true'
+}
+
 declare global {
   interface Window {
     webkitAudioContext?: typeof AudioContext
@@ -35,6 +45,7 @@ class AudioManager {
   private melodyActive = false
   private visibilityHidden = false
   private platformMuted = false
+  private userMuted = readStoredUserMuted()
   private menuSource: AudioBufferSourceNode | null = null
   private gameBaseSource: AudioBufferSourceNode | null = null
   private gameMelodySource: AudioBufferSourceNode | null = null
@@ -67,9 +78,9 @@ class AudioManager {
     this.gameBaseGain = this.context.createGain()
     this.gameMelodyGain = this.context.createGain()
 
-    this.masterGain.gain.value = 0.86
-    this.musicGain.gain.value = 0.66
-    this.sfxGain.gain.value = 0.84
+    this.masterGain.gain.value = 0.78
+    this.musicGain.gain.value = 0.6
+    this.sfxGain.gain.value = 0.76
     this.menuGain.gain.value = 0
     this.gameBaseGain.gain.value = 0
     this.gameMelodyGain.gain.value = 0
@@ -232,7 +243,7 @@ class AudioManager {
   }
 
   private syncSceneGains() {
-    if (!this.unlocked || this.visibilityHidden || this.platformMuted) {
+    if (!this.unlocked || this.visibilityHidden || this.platformMuted || this.userMuted) {
       this.ramp(this.menuGain, 0, 0.08)
       this.ramp(this.gameBaseGain, 0, 0.08)
       this.ramp(this.gameMelodyGain, 0, 0.08)
@@ -240,18 +251,18 @@ class AudioManager {
       return
     }
 
-    this.ramp(this.sfxGain, 0.84, 0.08)
+    this.ramp(this.sfxGain, 0.76, 0.08)
 
     if (this.currentScene === 'menu') {
-      this.ramp(this.menuGain, 0.2, 0.25)
+      this.ramp(this.menuGain, 0.18, 0.25)
       this.ramp(this.gameBaseGain, 0, 0.18)
       this.ramp(this.gameMelodyGain, 0, 0.18)
       return
     }
 
     this.ramp(this.menuGain, 0, 0.18)
-    this.ramp(this.gameBaseGain, 0.23, 0.2)
-    this.ramp(this.gameMelodyGain, this.melodyActive ? 0.15 : 0.008, 0.2)
+    this.ramp(this.gameBaseGain, 0.2, 0.2)
+    this.ramp(this.gameMelodyGain, this.melodyActive ? 0.11 : 0.006, 0.2)
   }
 
   private async syncScenePlayback() {
@@ -333,6 +344,20 @@ class AudioManager {
     this.syncSceneGains()
   }
 
+  isUserMuted() {
+    return this.userMuted
+  }
+
+  setUserMuted(muted: boolean) {
+    this.userMuted = muted
+
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(USER_AUDIO_MUTED_STORAGE_KEY, muted ? 'true' : 'false')
+    }
+
+    this.syncSceneGains()
+  }
+
   duckMusic(amount = 0.65, durationSeconds = 0.5) {
     if (!this.musicGain || !this.context) {
       return
@@ -344,12 +369,12 @@ class AudioManager {
     this.musicGain.gain.cancelScheduledValues(now)
     this.musicGain.gain.setValueAtTime(currentValue, now)
     this.musicGain.gain.linearRampToValueAtTime(duckedValue, now + 0.02)
-    this.musicGain.gain.linearRampToValueAtTime(0.7, now + durationSeconds)
+    this.musicGain.gain.linearRampToValueAtTime(0.6, now + durationSeconds)
   }
 
   async playSprite(name: string, options: PlaySpriteOptions = {}) {
     const context = this.context
-    if (!context || !this.unlocked || this.platformMuted || !this.sfxGain) {
+    if (!context || !this.unlocked || this.platformMuted || this.userMuted || !this.sfxGain) {
       return
     }
 
@@ -390,37 +415,37 @@ class AudioManager {
 
   async playUiConfirm() {
     await this.unlock()
-    await this.playSprite('click_confirm', { gain: 0.72, maxInstances: 2 })
+    await this.playSprite('click_confirm', { gain: 0.66, maxInstances: 2 })
   }
 
   async playSelect() {
-    await this.playSprite('select_blue', { gain: 0.78, maxInstances: 2 })
+    await this.playSprite('select_blue', { gain: 0.68, maxInstances: 2 })
   }
 
   async playSlice(index: number) {
     const cueIndex = Math.max(1, Math.min(3, index + 1))
-    await this.playSprite(`hover_l${cueIndex}`, { gain: 0.68, maxInstances: 2 })
+    await this.playSprite(`hover_l${cueIndex}`, { gain: 0.58, maxInstances: 2 })
   }
 
   async playMerge(level: number) {
-    this.duckMusic(0.6, 0.5)
-    await this.playSprite(`merge_lv${Math.max(2, Math.min(9, level))}`, { gain: 0.88, maxInstances: 2 })
+    this.duckMusic(0.72, 0.42)
+    await this.playSprite(`merge_lv${Math.max(2, Math.min(9, level))}`, { gain: 0.78, maxInstances: 2 })
   }
 
   async playDevourRed() {
-    this.duckMusic(0.58, 0.45)
-    await this.playSprite('devour_red', { gain: 0.84, maxInstances: 2 })
+    this.duckMusic(0.72, 0.38)
+    await this.playSprite('devour_red', { gain: 0.7, maxInstances: 2 })
   }
 
   async playDevourYellow() {
-    await this.playSprite('devour_yellow', { gain: 0.86, maxInstances: 3 })
+    await this.playSprite('devour_yellow', { gain: 0.74, maxInstances: 3 })
   }
 
   async playCombo(comboCount: number) {
     const playbackRate = Math.min(1.45, 1 + Math.max(0, comboCount - 2) * 0.06)
-    await this.playSprite('combo_base', { gain: 0.68, playbackRate, maxInstances: 2 })
+    await this.playSprite('combo_base', { gain: 0.58, playbackRate, maxInstances: 2 })
     if (comboCount >= 5) {
-      await this.playSprite('combo_x5_bonus', { gain: 0.62, maxInstances: 1 })
+      await this.playSprite('combo_x5_bonus', { gain: 0.5, maxInstances: 1 })
     }
   }
 

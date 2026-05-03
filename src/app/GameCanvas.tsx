@@ -51,6 +51,7 @@ export function GameCanvas({ interactive = true, allowedCubeIds = null, tutorial
     <Canvas
       dpr={dpr}
       gl={{ antialias: false, powerPreference: 'high-performance' }}
+      style={{ background: '#1a1a2e' }}
       onPointerMissed={() => {
         if (interactive) {
           clearSelection()

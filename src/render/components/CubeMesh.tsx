@@ -152,8 +152,12 @@ function createLabelTexture(level: number, dimmed: boolean) {
   return texture
 }
 
+function isSelectableCube(cube: CubeData) {
+  return cube.color === 'blue' || cube.color === 'yellow'
+}
+
 function CubeMeshInner({ cube, gridSize = 3, interactive = true, allowedCubeIds, reducedQuality = false }: { cube: CubeData; gridSize?: number; interactive?: boolean; allowedCubeIds?: string[] | null; reducedQuality?: boolean }) {
-  const { clickCube, getCubeVisualState, mergeAnimation } = useGameStore()
+  const { bombTargetIds, clickCube, getCubeVisualState, invalidClickFeedback, mergeAnimation, runState, selectedCubeId, validTargetIds } = useGameStore()
   const groupRef = useRef<THREE.Group>(null)
   const ringRef = useRef<THREE.Mesh>(null)
   const mergeWaveRef = useRef<THREE.Mesh>(null)
@@ -173,6 +177,7 @@ function CubeMeshInner({ cube, gridSize = 3, interactive = true, allowedCubeIds,
   const scale = visual.selected ? 1.12 : visual.highlighted ? 1.07 : 1
   const isMergeSource = mergeAnimation?.sourceId === cube.id
   const isMergeTarget = mergeAnimation?.targetId === cube.id
+  const isInvalidFeedbackTarget = invalidClickFeedback?.cubeId === cube.id
   const faction = factionVisuals(cube)
   const activeFaceConfigs = faceConfigs
   const labelTexture = useMemo(() => createLabelTexture(cube.level, visual.dimmed), [cube.level, visual.dimmed])
@@ -207,10 +212,18 @@ function CubeMeshInner({ cube, gridSize = 3, interactive = true, allowedCubeIds,
     const clickElapsedMs = Date.now() - clickFeedbackAtRef.current
     const clickFeedbackProgress = clickElapsedMs >= 0 && clickElapsedMs <= 220 ? 1 - (clickElapsedMs / 220) : 0
     const clickFeedbackScale = clickFeedbackProgress > 0 ? 1 + Math.sin(clickFeedbackProgress * Math.PI) * 0.06 : 1
+    const invalidElapsedMs = invalidClickFeedback?.cubeId === cube.id ? Date.now() - invalidClickFeedback.startTime : Number.POSITIVE_INFINITY
+    const invalidProgress = invalidElapsedMs >= 0 && invalidElapsedMs <= (invalidClickFeedback?.duration ?? 0)
+      ? 1 - (invalidElapsedMs / (invalidClickFeedback?.duration ?? 1))
+      : 0
 
     if (!mergeAnimation || (!isMergeSource && !isMergeTarget)) {
       group.position.set(position[0], position[1], position[2])
-      group.scale.setScalar(scale * clickFeedbackScale)
+      const invalidShake = invalidProgress > 0 ? Math.sin(invalidProgress * Math.PI * 12) * 0.04 : 0
+      const invalidPunch = invalidProgress > 0 ? 1 + Math.sin(invalidProgress * Math.PI) * 0.08 : 1
+      group.position.x += invalidShake
+      group.position.y += invalidProgress > 0 ? invalidProgress * 0.02 : 0
+      group.scale.setScalar(scale * clickFeedbackScale * invalidPunch)
       group.rotation.set(0, 0, 0)
     } else {
       const progress = Math.min(1, (Date.now() - mergeAnimation.startTime) / mergeAnimation.duration)
@@ -218,18 +231,17 @@ function CubeMeshInner({ cube, gridSize = 3, interactive = true, allowedCubeIds,
       const mergeBounce = Math.sin(progress * Math.PI)
 
       if (isMergeSource) {
-        const targetPosition = toWorldPosition(
-          mergeAnimation.targetPosition.x,
-          mergeAnimation.targetPosition.y,
-          mergeAnimation.targetPosition.z,
-          gridSize
-        )
+        const sourcePosition = toWorldPosition(mergeAnimation.sourcePosition.x, mergeAnimation.sourcePosition.y, mergeAnimation.sourcePosition.z, gridSize)
+        const targetPosition = toWorldPosition(mergeAnimation.targetPosition.x, mergeAnimation.targetPosition.y, mergeAnimation.targetPosition.z, gridSize)
+        const lift = mergeAnimation.kind === 'devour' ? 0.04 : 0.08
         group.position.set(
-          THREE.MathUtils.lerp(position[0], targetPosition[0], eased),
-          THREE.MathUtils.lerp(position[1], targetPosition[1], eased) + mergeBounce * 0.08,
-          THREE.MathUtils.lerp(position[2], targetPosition[2], eased)
+          THREE.MathUtils.lerp(sourcePosition[0], targetPosition[0], eased),
+          THREE.MathUtils.lerp(sourcePosition[1], targetPosition[1], eased) + mergeBounce * lift,
+          THREE.MathUtils.lerp(sourcePosition[2], targetPosition[2], eased)
         )
-        const mergeScale = THREE.MathUtils.lerp(scale * 1.01, 0.88, easeInOutCubic(progress))
+        const mergeScale = mergeAnimation.kind === 'devour'
+          ? THREE.MathUtils.lerp(scale * 1.02, 0.86, easeInOutCubic(progress))
+          : THREE.MathUtils.lerp(scale * 1.01, 0.88, easeInOutCubic(progress))
         group.scale.setScalar(mergeScale * clickFeedbackScale)
         group.rotation.set(0, 0, 0)
       } else if (isMergeTarget) {
@@ -269,7 +281,7 @@ function CubeMeshInner({ cube, gridSize = 3, interactive = true, allowedCubeIds,
       physicalMaterial.attenuationDistance = useFallback ? 0.01 : 0.35 + glassFactor * 1.05
       physicalMaterial.ior = useFallback ? 1.02 : cube.color === 'yellow' ? 1.22 : cube.color === 'red' ? 1.14 : 1.18
       physicalMaterial.opacity = isMergeSource
-        ? Math.max(0.45, opacity * 0.72)
+        ? mergeAnimation?.kind === 'devour' ? Math.max(0.86, opacity * shellOpacity) : Math.max(0.45, opacity * 0.72)
         : useFallback
           ? Math.max(0.98, opacity)
           : Math.max(0.9, opacity * shellOpacity)
@@ -298,13 +310,15 @@ function CubeMeshInner({ cube, gridSize = 3, interactive = true, allowedCubeIds,
         ? 1 + Math.sin(now * 5.4 + cube.level) * 0.12
         : visual.highlighted
           ? 1 + Math.sin(now * 4.2 + cube.level) * 0.08
-          : 1 + clickFeedbackProgress * 0.18
+          : isInvalidFeedbackTarget
+            ? 1 + invalidProgress * 0.28
+            : 1 + clickFeedbackProgress * 0.18
       ring.scale.setScalar(pulse)
     }
 
     const mergeWave = mergeWaveRef.current
     if (mergeWave) {
-      if (isMergeTarget && mergeAnimation) {
+      if (isMergeTarget && mergeAnimation && mergeAnimation.kind === 'merge') {
         const progress = Math.min(1, (Date.now() - mergeAnimation.startTime) / mergeAnimation.duration)
         const waveProgress = easeOutCubic(progress)
         const material = mergeWave.material as THREE.MeshBasicMaterial
@@ -361,6 +375,10 @@ function CubeMeshInner({ cube, gridSize = 3, interactive = true, allowedCubeIds,
 
   const clickFeedbackElapsedMs = Date.now() - clickFeedbackAtRef.current
   const clickFeedbackProgress = clickFeedbackElapsedMs >= 0 && clickFeedbackElapsedMs <= 220 ? 1 - (clickFeedbackElapsedMs / 220) : 0
+  const invalidFeedbackElapsedMs = invalidClickFeedback?.cubeId === cube.id ? Date.now() - invalidClickFeedback.startTime : Number.POSITIVE_INFINITY
+  const invalidFeedbackProgress = invalidFeedbackElapsedMs >= 0 && invalidFeedbackElapsedMs <= (invalidClickFeedback?.duration ?? 0)
+    ? 1 - (invalidFeedbackElapsedMs / (invalidClickFeedback?.duration ?? 1))
+    : 0
   const emissiveIntensity = (isMergeTarget && mergeAnimation
     ? 0.92
     : visual.selected ? 0.56 : visual.highlighted ? 0.38 : cube.level > 1 ? 0.2 : 0.04) + clickFeedbackProgress * 0.26
@@ -368,14 +386,24 @@ function CubeMeshInner({ cube, gridSize = 3, interactive = true, allowedCubeIds,
   const shellRoughness = cube.level <= 3 ? Math.max(0.3, faction.shellRoughness + 0.08) : cube.level <= 6 ? faction.shellRoughness : Math.max(0.16, faction.shellRoughness - 0.02)
   const shellTransmission = cube.level <= 3 ? Math.max(0.48, faction.shellTransmission - 0.08) : cube.level <= 6 ? faction.shellTransmission : Math.min(0.82, faction.shellTransmission + 0.04)
   const shellOpacity = visual.selected ? 1 : visual.highlighted ? Math.min(1, faction.shellOpacity + 0.03) : faction.shellOpacity
-  const showSelectionRing = visual.selected || visual.highlighted || clickFeedbackProgress > 0
-  const ringColor = clickFeedbackProgress > 0 ? '#ffffff' : visual.selected ? '#ffffff' : faction.coreAccent
-  const ringOpacity = clickFeedbackProgress > 0 ? 0.96 : visual.selected ? 0.94 : 0.56
+  const showSelectionRing = visual.selected || visual.highlighted || clickFeedbackProgress > 0 || invalidFeedbackProgress > 0
+  const ringColor = invalidFeedbackProgress > 0 ? '#ff8d8d' : clickFeedbackProgress > 0 ? '#ffffff' : visual.selected ? '#ffffff' : faction.coreAccent
+  const ringOpacity = invalidFeedbackProgress > 0 ? 0.9 : clickFeedbackProgress > 0 ? 0.96 : visual.selected ? 0.94 : 0.56
 
   const activateCube = (event: { stopPropagation: () => void }) => {
     if (!interactive || (allowedCubeIds && !allowedCubeIds.includes(cube.id))) {
       return
     }
+
+    const canSelect = isSelectableCube(cube)
+    const hasSelectedCube = Boolean(selectedCubeId)
+    const isValidBombTarget = runState === 'targeting_bomb' && bombTargetIds.includes(cube.id)
+    const isValidBoardTarget = hasSelectedCube && (cube.id === selectedCubeId || validTargetIds.includes(cube.id) || canSelect)
+    const isInvalidClick = runState === 'targeting_bomb'
+      ? !isValidBombTarget
+      : hasSelectedCube
+        ? !isValidBoardTarget && !canSelect
+        : !canSelect
 
     const now = Date.now()
     if (now - lastActivationAtRef.current < 80) {
@@ -386,7 +414,9 @@ function CubeMeshInner({ cube, gridSize = 3, interactive = true, allowedCubeIds,
     lastActivationAtRef.current = now
     event.stopPropagation()
     clickFeedbackAtRef.current = now
-    void audioManager.playSelect()
+    if (!isInvalidClick) {
+      void audioManager.playSelect()
+    }
     clickCube(cube.id)
   }
 
@@ -418,7 +448,7 @@ function CubeMeshInner({ cube, gridSize = 3, interactive = true, allowedCubeIds,
             transparent
             depthWrite
             depthTest
-            opacity={isMergeSource ? Math.max(0.4, opacity * 0.68) : Math.max(0.88, opacity * shellOpacity)}
+            opacity={isMergeSource ? mergeAnimation?.kind === 'devour' ? Math.max(0.86, opacity * shellOpacity) : Math.max(0.4, opacity * 0.68) : Math.max(0.88, opacity * shellOpacity)}
           />
         ) : (
           <meshPhysicalMaterial
@@ -439,7 +469,7 @@ function CubeMeshInner({ cube, gridSize = 3, interactive = true, allowedCubeIds,
             transparent
             depthWrite
             depthTest
-            opacity={isMergeSource ? Math.max(0.45, opacity * 0.72) : Math.max(0.9, opacity * shellOpacity)}
+            opacity={isMergeSource ? mergeAnimation?.kind === 'devour' ? Math.max(0.88, opacity * shellOpacity) : Math.max(0.45, opacity * 0.72) : Math.max(0.9, opacity * shellOpacity)}
           />
         )}
       </mesh>

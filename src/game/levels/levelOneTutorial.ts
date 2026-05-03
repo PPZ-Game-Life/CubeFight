@@ -43,8 +43,8 @@ const LEVEL_ONE_TUTORIAL_STEPS: TutorialStepBundle[] = [
     {
       kind: 'info',
       instruction: {
-        en: 'This blue cube is your force. Blue cubes are the units you control on the board.',
-        'zh-CN': '这个蓝色方块代表你的势力。蓝色方块就是你在棋盘上操控的单位。'
+        en: 'Blue cubes are yours.',
+        'zh-CN': '蓝块是你控制的方块。'
       },
       continueLabel: {
         en: 'Continue',
@@ -60,8 +60,8 @@ const LEVEL_ONE_TUTORIAL_STEPS: TutorialStepBundle[] = [
     {
       kind: 'action',
       instruction: {
-        en: 'Tap one Lv.1 blue cube, then tap the other. Same-level blue cubes merge into a stronger blue cube.',
-        'zh-CN': '先点一个 1 级蓝块，再点另一个。同级蓝块可以合成为更强的蓝块。'
+        en: 'Tap both blue cubes to merge.',
+        'zh-CN': '点击两个蓝块，合成更强蓝块。'
       },
       objectiveText: {
         en: 'Merge the two blue cubes',
@@ -80,8 +80,8 @@ const LEVEL_ONE_TUTORIAL_STEPS: TutorialStepBundle[] = [
     {
       kind: 'info',
       instruction: {
-        en: 'Yellow cubes are treasure. They can also merge, and higher-value treasure is even better to claim later.',
-        'zh-CN': '黄色方块是财宝。它们也能合成，而且更高价值的财宝会更值得你之后去吃掉。'
+        en: 'Yellow cubes are treasure.',
+        'zh-CN': '黄块是财宝。'
       },
       continueLabel: {
         en: 'Continue',
@@ -97,8 +97,8 @@ const LEVEL_ONE_TUTORIAL_STEPS: TutorialStepBundle[] = [
     {
       kind: 'action',
       instruction: {
-        en: 'Now merge the two yellow cubes. Treasure can merge just like blue cubes.',
-        'zh-CN': '现在把这两个黄色方块合起来。财宝也和蓝块一样，可以通过同级合成升级。'
+        en: 'Yellow cubes can merge too.',
+        'zh-CN': '黄块也能合成。'
       },
       objectiveText: {
         en: 'Merge the two yellow cubes',
@@ -117,8 +117,8 @@ const LEVEL_ONE_TUTORIAL_STEPS: TutorialStepBundle[] = [
     {
       kind: 'action',
       instruction: {
-        en: 'A blue cube can also devour treasure if its level is high enough. Use the Lv.2 blue cube to consume the yellow cube.',
-        'zh-CN': '只要等级足够，蓝块也可以吞掉财宝。用这个 2 级蓝块吃掉黄色方块。'
+        en: 'Higher blue cubes can eat treasure.',
+        'zh-CN': '高等级蓝块可以吃掉财宝。'
       },
       objectiveText: {
         en: 'Devour the yellow cube',
@@ -134,8 +134,8 @@ const LEVEL_ONE_TUTORIAL_STEPS: TutorialStepBundle[] = [
     {
       kind: 'info',
       instruction: {
-        en: 'Red cubes are enemies. They block your space, and you need stronger blue cubes to clear them out.',
-        'zh-CN': '红色方块就是敌人。它们会占住空间，你需要更强的蓝块把它们清掉。'
+        en: 'Red cubes are enemies.',
+        'zh-CN': '红块是敌人。'
       },
       continueLabel: {
         en: 'Continue',
@@ -151,8 +151,8 @@ const LEVEL_ONE_TUTORIAL_STEPS: TutorialStepBundle[] = [
     {
       kind: 'action',
       instruction: {
-        en: 'Finish the tutorial by using the blue cube to devour the red enemy.',
-        'zh-CN': '最后一步：用蓝色方块吞掉这个红色敌人，完成教学。'
+        en: 'Eat the red cube to finish.',
+        'zh-CN': '吃掉红块，完成教学。'
       },
       objectiveText: {
         en: 'Devour the red cube',

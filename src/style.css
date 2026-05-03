@@ -906,7 +906,7 @@
     position: absolute;
     left: 12px;
     right: 12px;
-    bottom: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
     width: auto;
     justify-content: space-between;
     align-items: flex-end;

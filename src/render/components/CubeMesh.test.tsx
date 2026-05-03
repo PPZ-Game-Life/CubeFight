@@ -24,9 +24,14 @@ const getCubeVisualState = vi.fn(() => ({ selected: false, highlighted: false, d
 
 vi.mock('../../game/state/gameStore', () => ({
   useGameStore: () => ({
+    bombTargetIds: [],
     clickCube,
     getCubeVisualState,
-    mergeAnimation: null as MergeAnimationState | null
+    invalidClickFeedback: null,
+    mergeAnimation: null as MergeAnimationState | null,
+    runState: 'idle',
+    selectedCubeId: null,
+    validTargetIds: []
   })
 }))
 

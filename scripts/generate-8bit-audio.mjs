@@ -68,6 +68,9 @@ function envelope(position, duration, attack = 0.004, decay = 0.08, sustain = 0.
 
 function oscillator(type, phase, duty = 0.5) {
   const normalized = phase - Math.floor(phase);
+  if (type === 'sine') {
+    return Math.sin(normalized * Math.PI * 2);
+  }
   if (type === 'pulse') {
     return normalized < duty ? 1 : -1;
   }
@@ -217,7 +220,7 @@ function writeJson(filePath, data) {
 
 function buildMainMenuBgm() {
   const sampleRate = 16000;
-  const bpm = 126;
+  const bpm = 104;
   const beatsPerBar = 4;
   const barCount = 16;
   const beat = 60 / bpm;
@@ -241,12 +244,12 @@ function buildMainMenuBgm() {
           start,
           duration: durationStep,
           fromFrequency: bassFrequency,
-          gain: 0.2,
-          type: 'triangle',
-          attack: 0.002,
-          decay: 0.026,
-          sustain: 0.46,
-          release: 0.045,
+          gain: 0.16,
+          type: 'sine',
+          attack: 0.004,
+          decay: 0.04,
+          sustain: 0.52,
+          release: 0.08,
         });
       }
     }
@@ -254,52 +257,52 @@ function buildMainMenuBgm() {
     for (let index = 0; index < leadPhrase.length; index += 1) {
       const start = barStart + index * (beat * 0.5);
       const note = leadPhrase[(index + bar) % leadPhrase.length];
-      const gain = index % 4 === 0 ? 0.105 : 0.085;
+      const gain = index % 4 === 0 ? 0.088 : 0.068;
       addTone(buffer, sampleRate, {
         start,
-        duration: beat * 0.34,
+        duration: beat * 0.4,
         fromFrequency: freq(note),
         gain,
-        type: 'pulse',
+        type: 'triangle',
         duty: 0.3,
-        attack: 0.002,
-        decay: 0.024,
-        sustain: 0.32,
-        release: 0.03,
-        vibratoDepth: 0.35,
-        vibratoRate: 5,
+        attack: 0.004,
+        decay: 0.05,
+        sustain: 0.38,
+        release: 0.06,
+        vibratoDepth: 0.16,
+        vibratoRate: 4,
       });
     }
 
     for (let pulse = 0; pulse < 4; pulse += 1) {
       const arpeggioStart = barStart + pulse * beat;
-      const pulseDuration = beat * 0.56;
+      const pulseDuration = beat * 0.5;
       for (let sub = 0; sub < 3; sub += 1) {
-        const semitone = [0, 4, 7, 12][(pulse + sub) % 4];
+        const semitone = [0, 4, 7, 9][(pulse + sub) % 4];
         addTone(buffer, sampleRate, {
           start: arpeggioStart + sub * (pulseDuration / 3),
           duration: pulseDuration / 3,
           fromFrequency: rootFreq * 2 ** (semitone / 12),
-          gain: 0.048,
-          type: 'pulse',
+          gain: 0.032,
+          type: 'triangle',
           duty: 0.2,
-          attack: 0.0015,
-          decay: 0.018,
-          sustain: 0.2,
-          release: 0.02,
-          vibratoDepth: 0.12,
-          vibratoRate: 5,
+          attack: 0.003,
+          decay: 0.024,
+          sustain: 0.24,
+          release: 0.04,
+          vibratoDepth: 0.08,
+          vibratoRate: 4,
         });
       }
     }
   }
 
-  return { sampleRate, buffer: lowPass(buffer, sampleRate, 4600) };
+  return { sampleRate, buffer: lowPass(buffer, sampleRate, 3500) };
 }
 
 function buildInGameBaseBgm() {
   const sampleRate = 16000;
-  const bpm = 128;
+  const bpm = 108;
   const beatsPerBar = 4;
   const barCount = 16;
   const beat = 60 / bpm;
@@ -307,8 +310,8 @@ function buildInGameBaseBgm() {
   const duration = barCount * beatsPerBar * beat;
   const buffer = makeBuffer(duration, sampleRate);
   const roots = ['C2', 'G2', 'A2', 'F2'];
-  const kickPattern = [1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0];
-  const snarePattern = [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1];
+  const kickPattern = [1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0];
+  const clapPattern = [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0];
 
   for (let bar = 0; bar < barCount; bar += 1) {
     const rootFreq = freq(roots[bar % roots.length]);
@@ -320,77 +323,77 @@ function buildInGameBaseBgm() {
         start,
         duration: sixteenth * 0.9,
         fromFrequency: bassFrequency,
-        gain: 0.21,
+        gain: 0.16,
         type: 'triangle',
-        attack: 0.002,
-        decay: 0.022,
-        sustain: 0.42,
-        release: 0.03,
+        attack: 0.004,
+        decay: 0.03,
+        sustain: 0.48,
+        release: 0.05,
       });
 
       if (kickPattern[step] === 1) {
         addNoise(buffer, sampleRate, {
           start,
           duration: 0.06,
-          gain: 0.14,
+          gain: 0.1,
           attack: 0.001,
-          decay: 0.016,
-          sustain: 0.1,
-          release: 0.02,
+          decay: 0.02,
+          sustain: 0.08,
+          release: 0.025,
           color: 'pink',
         });
         addTone(buffer, sampleRate, {
           start,
           duration: 0.07,
-          fromFrequency: 120,
-          toFrequency: 64,
-          gain: 0.12,
+          fromFrequency: 110,
+          toFrequency: 72,
+          gain: 0.09,
           type: 'triangle',
           attack: 0.001,
-          decay: 0.018,
-          sustain: 0.18,
-          release: 0.02,
+          decay: 0.02,
+          sustain: 0.16,
+          release: 0.025,
         });
       }
 
-      if (snarePattern[step] === 1) {
+      if (clapPattern[step] === 1) {
         addNoise(buffer, sampleRate, {
           start,
           duration: 0.08,
-          gain: 0.13,
+          gain: 0.085,
           attack: 0.001,
-          decay: 0.018,
-          sustain: 0.1,
-          release: 0.03,
+          decay: 0.02,
+          sustain: 0.08,
+          release: 0.035,
           highPass: 0.2,
         });
         addTone(buffer, sampleRate, {
           start,
           duration: 0.045,
-          fromFrequency: freq('C5'),
-          gain: 0.05,
+          fromFrequency: freq('E5'),
+          gain: 0.035,
           type: 'triangle',
           attack: 0.001,
-          decay: 0.012,
-          sustain: 0.08,
-          release: 0.012,
+          decay: 0.015,
+          sustain: 0.06,
+          release: 0.014,
         });
       }
     }
   }
 
-  return { sampleRate, buffer: lowPass(buffer, sampleRate, 4300) };
+  return { sampleRate, buffer: lowPass(buffer, sampleRate, 3200) };
 }
 
 function buildInGameMelodyLayer() {
   const sampleRate = 16000;
-  const bpm = 128;
+  const bpm = 108;
   const beatsPerBar = 4;
   const barCount = 16;
   const beat = 60 / bpm;
   const duration = barCount * beatsPerBar * beat;
   const buffer = makeBuffer(duration, sampleRate);
-  const phrase = ['E4', 'G4', 'A4', 'C5', 'A4', 'G4', 'E4', 'D4'];
+  const phrase = ['E4', 'G4', 'A4', 'B4', 'A4', 'G4', 'E4', 'D4'];
 
   for (let bar = 0; bar < barCount; bar += 1) {
     const barStart = bar * beatsPerBar * beat;
@@ -401,15 +404,15 @@ function buildInGameMelodyLayer() {
         start,
         duration: beat * 0.34,
         fromFrequency: freq(note),
-        gain: 0.12,
-        type: 'pulse',
+        gain: 0.092,
+        type: 'triangle',
         duty: 0.28,
-        attack: 0.002,
-        decay: 0.024,
-        sustain: 0.3,
-        release: 0.03,
-        vibratoDepth: 0.5,
-        vibratoRate: 5,
+        attack: 0.004,
+        decay: 0.03,
+        sustain: 0.28,
+        release: 0.05,
+        vibratoDepth: 0.16,
+        vibratoRate: 4,
       });
 
       if (index % 2 === 0) {
@@ -417,18 +420,18 @@ function buildInGameMelodyLayer() {
           start: start + beat * 0.08,
           duration: beat * 0.18,
           fromFrequency: freq(note) * 2,
-          gain: 0.028,
-          type: 'triangle',
+          gain: 0.016,
+          type: 'sine',
           attack: 0.001,
-          decay: 0.012,
-          sustain: 0.08,
-          release: 0.012,
+          decay: 0.014,
+          sustain: 0.05,
+          release: 0.014,
         });
       }
     }
   }
 
-  return { sampleRate, buffer: lowPass(buffer, sampleRate, 4700) };
+  return { sampleRate, buffer: lowPass(buffer, sampleRate, 3600) };
 }
 
 function buildSfxSprite() {
@@ -447,21 +450,21 @@ function buildSfxSprite() {
   }
 
   pushCue('hover_l1', 0.04, (buffer, sr, duration) => {
-    addTone(buffer, sr, { start: 0, duration, fromFrequency: freq('C6'), gain: 0.2, type: 'triangle', attack: 0.002, decay: 0.01, sustain: 0.12, release: 0.012 });
+    addTone(buffer, sr, { start: 0, duration, fromFrequency: freq('C6'), gain: 0.12, type: 'sine', attack: 0.002, decay: 0.012, sustain: 0.1, release: 0.014 });
   });
   pushCue('hover_l2', 0.04, (buffer, sr, duration) => {
-    addTone(buffer, sr, { start: 0, duration, fromFrequency: freq('E6'), gain: 0.2, type: 'triangle', attack: 0.002, decay: 0.01, sustain: 0.12, release: 0.012 });
+    addTone(buffer, sr, { start: 0, duration, fromFrequency: freq('E6'), gain: 0.12, type: 'sine', attack: 0.002, decay: 0.012, sustain: 0.1, release: 0.014 });
   });
   pushCue('hover_l3', 0.04, (buffer, sr, duration) => {
-    addTone(buffer, sr, { start: 0, duration, fromFrequency: freq('G6'), gain: 0.2, type: 'triangle', attack: 0.002, decay: 0.01, sustain: 0.12, release: 0.012 });
+    addTone(buffer, sr, { start: 0, duration, fromFrequency: freq('G6'), gain: 0.12, type: 'sine', attack: 0.002, decay: 0.012, sustain: 0.1, release: 0.014 });
   });
   pushCue('click_confirm', 0.12, (buffer, sr, duration) => {
-    addTone(buffer, sr, { start: 0, duration, fromFrequency: freq('G5'), toFrequency: freq('C5'), gain: 0.18, type: 'triangle', attack: 0.003, decay: 0.03, sustain: 0.2, release: 0.028 });
-    addTone(buffer, sr, { start: 0.012, duration: duration * 0.42, fromFrequency: freq('E5'), gain: 0.045, type: 'triangle', attack: 0.001, decay: 0.014, sustain: 0.1, release: 0.014 });
+    addTone(buffer, sr, { start: 0, duration, fromFrequency: freq('G5'), toFrequency: freq('D5'), gain: 0.13, type: 'triangle', attack: 0.003, decay: 0.032, sustain: 0.18, release: 0.03 });
+    addTone(buffer, sr, { start: 0.012, duration: duration * 0.42, fromFrequency: freq('E5'), gain: 0.028, type: 'sine', attack: 0.001, decay: 0.015, sustain: 0.08, release: 0.014 });
   });
   pushCue('select_blue', 0.09, (buffer, sr, duration) => {
-    addTone(buffer, sr, { start: 0, duration, fromFrequency: freq('E5'), toFrequency: freq('B5'), gain: 0.2, type: 'triangle', attack: 0.004, decay: 0.022, sustain: 0.2, release: 0.028 });
-    addTone(buffer, sr, { start: 0.01, duration: duration * 0.45, fromFrequency: freq('B5'), gain: 0.045, type: 'triangle', attack: 0.002, decay: 0.014, sustain: 0.12, release: 0.018 });
+    addTone(buffer, sr, { start: 0, duration, fromFrequency: freq('E5'), toFrequency: freq('A5'), gain: 0.14, type: 'triangle', attack: 0.004, decay: 0.024, sustain: 0.18, release: 0.03 });
+    addTone(buffer, sr, { start: 0.01, duration: duration * 0.45, fromFrequency: freq('B5'), gain: 0.03, type: 'sine', attack: 0.002, decay: 0.016, sustain: 0.1, release: 0.018 });
   });
 
   for (let level = 2; level <= 9; level += 1) {
@@ -475,23 +478,23 @@ function buildSfxSprite() {
           start: index * stepDuration,
           duration: stepDuration,
           fromFrequency: freq(notes[index]) * 2 ** (semitoneShift / 12),
-          gain: 0.2,
+          gain: 0.15,
           type: 'triangle',
           attack: 0.003,
-          decay: 0.02,
-          sustain: 0.22,
-          release: 0.026,
+          decay: 0.022,
+          sustain: 0.2,
+          release: 0.03,
         });
 
         addTone(buffer, sr, {
           start: index * stepDuration + 0.004,
           duration: stepDuration * 0.72,
           fromFrequency: freq(notes[index]) * 2 ** (semitoneShift / 12) * 2,
-          gain: 0.032,
-          type: 'triangle',
+          gain: 0.018,
+          type: 'sine',
           attack: 0.002,
           decay: 0.014,
-          sustain: 0.12,
+          sustain: 0.08,
           release: 0.018,
         });
       }
@@ -499,20 +502,20 @@ function buildSfxSprite() {
   }
 
   pushCue('devour_red', 0.14, (buffer, sr) => {
-    addNoise(buffer, sr, { start: 0, duration: 0.08, gain: 0.18, attack: 0.001, decay: 0.02, sustain: 0.08, release: 0.022, color: 'pink', highPass: 0.12 });
-    addTone(buffer, sr, { start: 0, duration: 0.11, fromFrequency: 170, toFrequency: 92, gain: 0.15, type: 'triangle', attack: 0.001, decay: 0.022, sustain: 0.14, release: 0.024 });
-    addTone(buffer, sr, { start: 0.012, duration: 0.05, fromFrequency: freq('C5'), gain: 0.028, type: 'triangle', attack: 0.001, decay: 0.01, sustain: 0.06, release: 0.01 });
+    addNoise(buffer, sr, { start: 0, duration: 0.06, gain: 0.11, attack: 0.001, decay: 0.022, sustain: 0.08, release: 0.024, color: 'pink', highPass: 0.16 });
+    addTone(buffer, sr, { start: 0, duration: 0.11, fromFrequency: 180, toFrequency: 110, gain: 0.11, type: 'triangle', attack: 0.001, decay: 0.024, sustain: 0.16, release: 0.03 });
+    addTone(buffer, sr, { start: 0.014, duration: 0.06, fromFrequency: freq('A4'), gain: 0.022, type: 'sine', attack: 0.001, decay: 0.012, sustain: 0.06, release: 0.012 });
   });
   pushCue('devour_yellow', 0.08, (buffer, sr, duration) => {
-    addTone(buffer, sr, { start: 0, duration: duration * 0.7, fromFrequency: freq('E6'), gain: 0.2, type: 'triangle', attack: 0.001, decay: 0.016, sustain: 0.16, release: 0.014 });
-    addTone(buffer, sr, { start: 0.012, duration: duration * 0.48, fromFrequency: freq('B6'), gain: 0.11, type: 'triangle', attack: 0.001, decay: 0.014, sustain: 0.12, release: 0.012 });
+    addTone(buffer, sr, { start: 0, duration: duration * 0.7, fromFrequency: freq('E6'), gain: 0.16, type: 'triangle', attack: 0.001, decay: 0.016, sustain: 0.16, release: 0.014 });
+    addTone(buffer, sr, { start: 0.012, duration: duration * 0.48, fromFrequency: freq('A6'), gain: 0.065, type: 'sine', attack: 0.001, decay: 0.014, sustain: 0.1, release: 0.012 });
   });
   pushCue('combo_base', 0.11, (buffer, sr, duration) => {
-    addTone(buffer, sr, { start: 0, duration, fromFrequency: freq('G5'), toFrequency: freq('B5'), gain: 0.18, type: 'triangle', attack: 0.002, decay: 0.024, sustain: 0.18, release: 0.024 });
+    addTone(buffer, sr, { start: 0, duration, fromFrequency: freq('G5'), toFrequency: freq('A5'), gain: 0.13, type: 'triangle', attack: 0.002, decay: 0.024, sustain: 0.18, release: 0.024 });
   });
   pushCue('combo_x5_bonus', 0.18, (buffer, sr) => {
-    addTone(buffer, sr, { start: 0, duration: 0.16, fromFrequency: freq('E6'), gain: 0.11, type: 'triangle', attack: 0.002, decay: 0.025, sustain: 0.14, release: 0.05, vibratoDepth: 1.2, vibratoRate: 8 });
-    addTone(buffer, sr, { start: 0.02, duration: 0.14, fromFrequency: freq('B6'), gain: 0.08, type: 'triangle', attack: 0.002, decay: 0.022, sustain: 0.12, release: 0.04, vibratoDepth: 1.5, vibratoRate: 10 });
+    addTone(buffer, sr, { start: 0, duration: 0.16, fromFrequency: freq('E6'), gain: 0.075, type: 'triangle', attack: 0.002, decay: 0.025, sustain: 0.14, release: 0.05, vibratoDepth: 0.45, vibratoRate: 6 });
+    addTone(buffer, sr, { start: 0.02, duration: 0.14, fromFrequency: freq('A6'), gain: 0.05, type: 'sine', attack: 0.002, decay: 0.022, sustain: 0.12, release: 0.04, vibratoDepth: 0.5, vibratoRate: 7 });
   });
 
   const totalDuration = cursor;
@@ -529,7 +532,7 @@ function buildSfxSprite() {
 
   return {
     sampleRate,
-    buffer: lowPass(sprite, sampleRate, 4000),
+    buffer: lowPass(sprite, sampleRate, 3200),
     cues,
   };
 }

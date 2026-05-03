@@ -64,7 +64,7 @@ describe('App main menu flow', () => {
     fireEvent.click(screen.getByTestId('main-menu-start'))
 
     expect(screen.getByRole('button', { name: '继续' })).toBeInTheDocument()
-    expect(screen.getByText(/这个蓝色方块代表你的势力/i)).toBeInTheDocument()
+    expect(screen.getByText(/蓝块是你控制的方块/i)).toBeInTheDocument()
   })
 
   it('shows endless as the only public main menu entry after tutorial completion', () => {

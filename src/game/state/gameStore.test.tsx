@@ -347,7 +347,7 @@ describe('gameStore public actions', () => {
         store.getState().commitBoardAction('red-a')
       }).not.toThrow()
 
-      expect(scheduled.size).toBe(1)
+      expect(scheduled.size).toBe(2)
     } finally {
       globalThis.setTimeout = originalSetTimeout
       globalThis.clearTimeout = originalClearTimeout
@@ -417,6 +417,7 @@ describe('gameStore public actions', () => {
     expect(store.getState().selectedCubeId).toBe('blue-a')
     expect(store.getState().validTargetIds).toEqual(['blue-b'])
     expect(store.getState().statusHintKey).toBe('chooseValidTarget')
+    expect(store.getState().invalidClickFeedback?.cubeId).toBe('red-strong')
   })
 
   it('rejects hidden target ids during selected state', () => {
@@ -475,6 +476,9 @@ describe('gameStore public actions', () => {
       cube({ id: 'red-spare', color: 'red', level: 2, x: 2, y: 2, z: 2 })
     ])
     expect(store.getState().coins).toBe(1)
+    expect(store.getState().mergeAnimation?.kind).toBe('devour')
+    expect(store.getState().mergeAnimation?.sourcePosition).toEqual({ x: 0, y: 0, z: 0 })
+    expect(store.getState().mergeAnimation?.targetPosition).toEqual({ x: 1, y: 0, z: 0 })
   })
 
   it('lets clicking a highlighted yellow target commit a yellow merge', () => {

@@ -2,6 +2,7 @@ import React from 'react'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { audioManager } from '../audio/audioManager'
 import { buildNoMoveBoardWithRed, buildPlayableDemoConfig } from '../game/config/playableDemo'
 import type { CubeData, Locale, PlayableDemoConfig } from '../game/model/types'
 import { createGameStore, GameStoreContext, type GameStore } from '../game/state/gameStore'
@@ -53,6 +54,7 @@ function renderWithGameProviders(options: {
 }
 
 afterEach(() => {
+  audioManager.setUserMuted(false)
   window.localStorage.clear()
   vi.unstubAllGlobals()
 })
@@ -161,6 +163,7 @@ describe('HUD', () => {
     expect(screen.getByTestId('hud-score-hero')).toBeInTheDocument()
     expect(screen.queryByTestId('hud-fps-panel')).not.toBeInTheDocument()
     expect(screen.getByTestId('hud-lobby-button')).toBeInTheDocument()
+    expect(screen.getByTestId('hud-audio-toggle')).toBeInTheDocument()
     expect(screen.queryByTestId('hud-bomb-dock')).not.toBeInTheDocument()
     expect(screen.getByTestId('hud-bottom-row')).toBeInTheDocument()
     expect(screen.queryByLabelText('Hammer')).not.toBeInTheDocument()
@@ -299,6 +302,26 @@ describe('HUD', () => {
 
     expect(lobbyButton).toHaveAccessibleName('Lobby')
     expect(lobbyButton).toHaveTextContent('⌂')
+  })
+
+  it('toggles global audio from the bottom-corner control', () => {
+    renderWithGameProviders()
+
+    const audioButton = screen.getByTestId('hud-audio-toggle')
+
+    expect(audioButton).toHaveAccessibleName('Mute audio')
+    expect(audioButton).toHaveTextContent('🔊')
+
+    fireEvent.click(audioButton)
+
+    expect(audioManager.isUserMuted()).toBe(true)
+    expect(audioButton).toHaveAccessibleName('Unmute audio')
+    expect(audioButton).toHaveTextContent('🔇')
+
+    fireEvent.click(audioButton)
+
+    expect(audioManager.isUserMuted()).toBe(false)
+    expect(audioButton).toHaveAccessibleName('Mute audio')
   })
 
   it('shows a crisis vignette when the board occupancy gets high', () => {

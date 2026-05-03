@@ -6,6 +6,7 @@ import type {
   CubeData,
   GameOverlay,
   GameRunState,
+  InvalidClickFeedbackState,
   MatchResult,
   MergeAnimationState,
   PlayableDemoConfig,
@@ -118,6 +119,7 @@ type GameStoreData = ComboState & {
   matchResult: MatchResult
   statusHintKey: StatusHintKey | null
   mergeAnimation: MergeAnimationState | null
+  invalidClickFeedback: InvalidClickFeedbackState | null
   slice: SliceState
   controls: ControlState
   camera: CameraState
@@ -135,6 +137,7 @@ export type GameStoreSnapshot = {
   comboText: ComboTextKey | null
   gameOver: boolean
   mergeAnimation: MergeAnimationState | null
+  invalidClickFeedback: InvalidClickFeedbackState | null
   slice: SliceState
   controls: ControlState
   camera: CameraState
@@ -179,6 +182,8 @@ export type CreateGameStoreOptions = {
 }
 
 const MERGE_DURATION_MS = 240
+const DEVOUR_DURATION_MS = 240
+const INVALID_CLICK_FEEDBACK_DURATION_MS = 260
 export const GameStoreContext = createContext<GameStore | null>(null)
 
 const ENDLESS_TUNING: Record<3 | 4 | 5, EndlessTuning> = {
@@ -438,6 +443,7 @@ function createInitialData(config: PlayableDemoConfig): GameStoreData {
     matchResult: { kind: 'in_progress' },
     statusHintKey: 'select_blue_cube',
     mergeAnimation: null,
+    invalidClickFeedback: null,
     slice: { axis: null, index: -1 },
     controls: { xSelection: -1, ySelection: -1 },
     camera: { yaw: 0, pitch: Math.PI / 2 },
@@ -474,6 +480,8 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
   let comboTimer: TimeoutHandle | null = null
   let pausedComboRemainingMs: number | null = null
   let resolutionTimer: TimeoutHandle | null = null
+  let actionAnimationTimer: TimeoutHandle | null = null
+  let invalidClickFeedbackTimer: TimeoutHandle | null = null
   let refillTimer: TimeoutHandle | null = null
   let cachedSnapshot: GameStoreSnapshot | null = null
   let endlessSpawnSerial = 0
@@ -936,6 +944,48 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
     listeners.forEach((listener) => listener())
   }
 
+  const clearActionAnimationTimer = () => {
+    if (!actionAnimationTimer) {
+      return
+    }
+
+    timers.clearTimeout(actionAnimationTimer)
+    actionAnimationTimer = null
+  }
+
+  const clearInvalidClickFeedbackTimer = () => {
+    if (!invalidClickFeedbackTimer) {
+      return
+    }
+
+    timers.clearTimeout(invalidClickFeedbackTimer)
+    invalidClickFeedbackTimer = null
+  }
+
+  const scheduleActionAnimationClear = (duration: number) => {
+    clearActionAnimationTimer()
+    actionAnimationTimer = timers.setTimeout(() => {
+      actionAnimationTimer = null
+      data.mergeAnimation = null
+      emit()
+    }, duration)
+  }
+
+  const triggerInvalidClickFeedback = (cubeId: string) => {
+    data.invalidClickFeedback = {
+      cubeId,
+      startTime: now(),
+      duration: INVALID_CLICK_FEEDBACK_DURATION_MS
+    }
+
+    clearInvalidClickFeedbackTimer()
+    invalidClickFeedbackTimer = timers.setTimeout(() => {
+      invalidClickFeedbackTimer = null
+      data.invalidClickFeedback = null
+      emit()
+    }, INVALID_CLICK_FEEDBACK_DURATION_MS)
+  }
+
   const applyComboProgress = () => {
     const nextCombo = advanceComboState(data, now(), config.combo.timeoutMs)
     data.comboCount = nextCombo.comboCount
@@ -958,6 +1008,7 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
   const commitBombTarget = (targetId: string) => {
     if (!getDerived().bombTargetIds.includes(targetId)) {
       applyStatusHint('targeting_bomb')
+      triggerInvalidClickFeedback(targetId)
       emit()
       return
     }
@@ -965,6 +1016,7 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
     const result = resolveBomb(data.cubes, targetId)
     if (result.kind === 'invalid') {
       applyStatusHint('targeting_bomb')
+      triggerInvalidClickFeedback(targetId)
       emit()
       return
     }
@@ -1006,11 +1058,14 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
 
   const commitBoardAction = (targetId: string) => {
     if (data.runState !== 'selected' || !data.selectedCubeId) {
+      triggerInvalidClickFeedback(targetId)
+      emit()
       return
     }
 
     if (!getDerived(data.selectedCubeId).validTargetIds.includes(targetId)) {
       data.statusHintKey = 'chooseValidTarget'
+      triggerInvalidClickFeedback(targetId)
       emit()
       return
     }
@@ -1033,6 +1088,7 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
 
     if (result.kind === 'invalid') {
       data.statusHintKey = 'chooseValidTarget'
+      triggerInvalidClickFeedback(targetId)
       emit()
       return
     }
@@ -1054,20 +1110,29 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
         }
       })
       clearResolutionTimer()
+      clearActionAnimationTimer()
       data.runState = 'resolving'
       data.overlay = 'none'
       data.mergeAnimation = {
+        kind: 'merge',
         sourceId: result.sourceId,
         targetId: result.targetId,
+        sourcePosition: {
+          x: selectedCube.x,
+          y: selectedCube.y,
+          z: selectedCube.z
+        },
         targetPosition: {
           x: target.x,
           y: target.y,
           z: target.z
         },
         nextLevel: result.nextLevel,
+        targetColor: target.color,
+        targetVariant: target.variant,
         startTime: now(),
         duration: MERGE_DURATION_MS,
-        sourceColor: 'blue'
+        sourceColor: selectedCube.color
       }
       data.statusHintKey = 'resolving'
       resolutionTimer = timers.setTimeout(() => finalizeMerge(result.cubes, awardedScore), MERGE_DURATION_MS)
@@ -1075,6 +1140,29 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
       return
     }
 
+    clearActionAnimationTimer()
+    data.mergeAnimation = {
+      kind: 'devour',
+      sourceId: result.sourceId,
+      targetId: result.targetId,
+      sourcePosition: {
+        x: selectedCube.x,
+        y: selectedCube.y,
+        z: selectedCube.z
+      },
+      targetPosition: {
+        x: target.x,
+        y: target.y,
+        z: target.z
+      },
+      nextLevel: selectedCube.level,
+      targetColor: target.color,
+      targetVariant: target.variant,
+      startTime: now(),
+      duration: DEVOUR_DURATION_MS,
+      sourceColor: selectedCube.color
+    }
+    scheduleActionAnimationClear(DEVOUR_DURATION_MS)
     data.cubes = result.cubes.map(cloneCube)
     data.score += awardedScore
     incrementActionCount(data.actionStats.devourCounts, `${target.color}:${result.consumedLevel}`)
@@ -1096,7 +1184,6 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
       data.coins += result.consumedLevel
     }
     data.selectedCubeId = null
-    data.mergeAnimation = null
     scheduleEndlessRefillIfNeeded()
   }
 
@@ -1169,6 +1256,8 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
   const restartDemo = () => {
     clearComboTimer()
     clearResolutionTimer()
+    clearActionAnimationTimer()
+    clearInvalidClickFeedbackTimer()
     clearRefillTimer()
     pausedComboRemainingMs = null
     data = createInitialData(config)
@@ -1314,6 +1403,7 @@ export function createGameStore(options: CreateGameStoreOptions = {}): GameStore
       comboText: data.comboText,
       gameOver: data.matchResult.kind === 'game_over',
       mergeAnimation: data.mergeAnimation,
+      invalidClickFeedback: data.invalidClickFeedback,
       slice: data.slice,
       controls: data.controls,
       camera: data.camera,
